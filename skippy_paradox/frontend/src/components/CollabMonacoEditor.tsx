@@ -14,6 +14,7 @@ import { MonacoBinding } from 'y-monaco';
 import { StoredFile } from '../services/storageService';
 import { CollabProvider, DocConnection } from '../services/collabService';
 import { Loader2 } from 'lucide-react';
+import { SHENRON_MONACO_THEME, SHENRON_MONACO_THEME_DATA, SHENRON_EDITOR_BG } from './shell/monacoTheme';
 
 interface Props {
   file: StoredFile;
@@ -32,57 +33,7 @@ const LANGUAGE_MAP: Record<string, string> = {
   'JSX': 'javascript', 'TSX': 'typescript',
 };
 
-const CATPPUCCIN_MOCHA = {
-  base: 'vs-dark', inherit: true,
-  rules: [
-    { token: 'comment', foreground: '6c7086', fontStyle: 'italic' },
-    { token: 'keyword', foreground: 'cba6f7' },
-    { token: 'string', foreground: 'a6e3a1' },
-    { token: 'number', foreground: 'fab387' },
-    { token: 'type', foreground: 'f9e2af' },
-    { token: 'function', foreground: '89b4fa' },
-    { token: 'variable', foreground: 'cdd6f4' },
-    { token: 'operator', foreground: '94e2d5' },
-  ],
-  colors: {
-    'editor.background': '#1e1e2e', 'editor.foreground': '#cdd6f4',
-    'editor.lineHighlightBackground': '#313244',
-    'editorLineNumber.foreground': '#6c7086',
-    'editorLineNumber.activeForeground': '#cdd6f4',
-    'editor.selectionBackground': '#45475a',
-    'editor.inactiveSelectionBackground': '#313244',
-    'editorCursor.foreground': '#f5e0dc',
-    'editorWhitespace.foreground': '#45475a',
-    'editorIndentGuide.background': '#45475a',
-    'editorIndentGuide.activeBackground': '#6c7086',
-  }
-};
-
-const CATPPUCCIN_LATTE = {
-  base: 'vs', inherit: true,
-  rules: [
-    { token: 'comment', foreground: '9ca0b0', fontStyle: 'italic' },
-    { token: 'keyword', foreground: '8839ef' },
-    { token: 'string', foreground: '40a02b' },
-    { token: 'number', foreground: 'fe640b' },
-    { token: 'type', foreground: 'df8e1d' },
-    { token: 'function', foreground: '1e66f5' },
-    { token: 'variable', foreground: '4c4f69' },
-    { token: 'operator', foreground: '179299' },
-  ],
-  colors: {
-    'editor.background': '#eff1f5', 'editor.foreground': '#4c4f69',
-    'editor.lineHighlightBackground': '#e6e9ef',
-    'editorLineNumber.foreground': '#9ca0b0',
-    'editorLineNumber.activeForeground': '#4c4f69',
-    'editor.selectionBackground': '#ccd0da',
-    'editor.inactiveSelectionBackground': '#e6e9ef',
-    'editorCursor.foreground': '#dc8a78',
-    'editorWhitespace.foreground': '#ccd0da',
-    'editorIndentGuide.background': '#ccd0da',
-    'editorIndentGuide.activeBackground': '#9ca0b0',
-  }
-};
+// Theme: see ./shell/monacoTheme (Shenron dark, used for both theme values)
 
 // ─── Global cursor CSS (injected once) ─────────────────────────────────
 
@@ -194,9 +145,8 @@ export const CollabMonacoEditor: React.FC<Props> = ({
     editorRef.current = editor;
     monacoRef.current = monaco;
 
-    monaco.editor.defineTheme('catppuccin-mocha', CATPPUCCIN_MOCHA as any);
-    monaco.editor.defineTheme('catppuccin-latte', CATPPUCCIN_LATTE as any);
-    monaco.editor.setTheme(theme === 'dark' ? 'catppuccin-mocha' : 'catppuccin-latte');
+    monaco.editor.defineTheme(SHENRON_MONACO_THEME, SHENRON_MONACO_THEME_DATA as any);
+    monaco.editor.setTheme(SHENRON_MONACO_THEME);
 
     try {
       const diagOff = { noSemanticValidation: true, noSyntaxValidation: true, noSuggestionDiagnostics: true };
@@ -317,7 +267,7 @@ export const CollabMonacoEditor: React.FC<Props> = ({
   useEffect(() => {
     if (monacoRef.current) {
       monacoRef.current.editor.setTheme(
-        theme === 'dark' ? 'catppuccin-mocha' : 'catppuccin-latte',
+        SHENRON_MONACO_THEME,
       );
     }
   }, [theme]);
@@ -330,12 +280,12 @@ export const CollabMonacoEditor: React.FC<Props> = ({
         height="100%"
         language={languageId}
         defaultValue=""
-        theme={theme === 'dark' ? 'catppuccin-mocha' : 'catppuccin-latte'}
+        theme={SHENRON_MONACO_THEME}
         onMount={handleEditorDidMount}
         loading={
           <div className="absolute inset-0 flex items-center justify-center"
-            style={{ backgroundColor: theme === 'dark' ? '#1e1e2e' : '#eff1f5' }}>
-            <Loader2 className={`animate-spin ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`} size={24} />
+            style={{ backgroundColor: SHENRON_EDITOR_BG }}>
+            <Loader2 className="animate-spin text-fg-muted" size={24} />
           </div>
         }
         options={{

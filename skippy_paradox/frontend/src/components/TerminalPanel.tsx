@@ -2,12 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
-import { Plus, Square, X, Copy, Clipboard, Hand, RotateCw } from 'lucide-react';
+import { Plus, Square, X, Copy, Clipboard, Hand, RotateCw, ChevronDown } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { WorkspaceController } from '../hooks/useWorkspace';
 import { CollabProvider } from '../services/collabService';
 import { clientId, terminalUrl, TerminalInfo } from '../services/workspaceService';
 import { DEFAULT_OPENROUTER_KEY } from '../services/harnessDefaults';
+
+// Shenron dark terminal theme (dark only; isDark kept as an effect dependency for API compatibility)
+const TERMINAL_THEME = {background:'#0A0A0F',foreground:'#E6E6EB',cursor:'#56C0F2',cursorAccent:'#0A0A0F',selectionBackground:'#56C0F240',black:'#16161F',brightBlack:'#5C5C6B',white:'#E6E6EB',brightWhite:'#FFFFFF',blue:'#56C0F2',brightBlue:'#7ACFF5',green:'#4ADE80',red:'#F26B6B',yellow:'#F2B66B',cyan:'#6FD6C6',magenta:'#F28FB8'};
 
 export function TerminalPanel({ workspace, room, visible, onHide }: { workspace: WorkspaceController; room: CollabProvider | null; visible: boolean; onHide: () => void }) {
   const { isDark } = useTheme();
@@ -33,7 +36,7 @@ export function TerminalPanel({ workspace, room, visible, onHide }: { workspace:
   useEffect(() => {
     if (!container.current || !workspace.project) return;
     let disposed = false;
-    const term = new XTerm({cursorBlink:true,scrollback:5000,fontSize:13,fontFamily:'Consolas, monospace',allowProposedApi:false,disableStdin:true});
+    const term = new XTerm({cursorBlink:true,scrollback:5000,fontSize:13,fontFamily:"'JetBrains Mono', Consolas, monospace",allowProposedApi:false,disableStdin:true});
     const addon = new FitAddon(); term.loadAddon(addon); term.open(container.current);
     term.textarea?.setAttribute('aria-label','Workspace terminal input');
     xterm.current = term; fit.current = addon;
@@ -79,29 +82,29 @@ export function TerminalPanel({ workspace, room, visible, onHide }: { workspace:
     return()=>{disposed=true;observer.disconnect();subscription.dispose();ws.close();term.dispose();socket.current=null;xterm.current=null;fit.current=null;current.current=null;setSelected(null);setConnected(false);};
   },[workspace.project?.id,room,reconnect]);
 
-  useEffect(()=>{if(xterm.current)xterm.current.options.theme=isDark?{background:'#181821',foreground:'#e2e8f0',cursor:'#c4b5fd',selectionBackground:'#7c3aed66'}:{background:'#f8fafc',foreground:'#0f172a',cursor:'#6d28d9',selectionBackground:'#8b5cf655'};},[isDark,workspace.project?.id,reconnect]);
+  useEffect(()=>{if(xterm.current)xterm.current.options.theme=TERMINAL_THEME;},[isDark,workspace.project?.id,reconnect]);
   useEffect(()=>{if(visible)requestAnimationFrame(resize);},[visible,height]);
   const owns=selected?.owner===ownerRef.current;
-  const button='inline-flex items-center justify-center gap-1 rounded px-2 py-1.5 text-xs hover:bg-slate-500/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-purple-400 disabled:opacity-40';
-  return <section aria-label="Project terminal" style={{height:visible?height:0,display:visible?'flex':'none'}} className={`shrink-0 min-h-0 flex-col border-t border-slate-500/30 ${isDark?'bg-[#181821] text-slate-200':'bg-slate-50 text-slate-800'}`}>
-    <div role="separator" tabIndex={0} aria-label="Resize terminal" aria-orientation="horizontal" aria-valuenow={height} aria-valuemin={160} aria-valuemax={600} className="h-2 shrink-0 cursor-row-resize bg-slate-500/10 hover:bg-purple-400/30 focus-visible:outline focus-visible:outline-purple-400"
+  const button='inline-flex items-center justify-center gap-1 h-7 min-w-7 rounded-ctl px-1.5 text-[12px] text-fg-secondary hover:text-fg hover:bg-white/5 transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-accent disabled:opacity-40 disabled:pointer-events-none';
+  return <section aria-label="Project terminal" style={{height:visible?height:0,display:visible?'flex':'none'}} className="shrink-0 min-h-0 flex-col border-t border-line bg-bg text-fg font-sans">
+    <div role="separator" tabIndex={0} aria-label="Resize terminal" aria-orientation="horizontal" aria-valuenow={height} aria-valuemin={160} aria-valuemax={600} className="relative h-px shrink-0 cursor-row-resize bg-line hover:bg-accent focus:outline-none focus-visible:bg-accent before:absolute before:content-[''] before:inset-x-0 before:-top-1 before:-bottom-1"
       onPointerDown={e=>{drag.current={y:e.clientY,height};e.currentTarget.setPointerCapture(e.pointerId);}} onPointerMove={e=>{if(drag.current)setHeight(Math.max(160,Math.min(600,drag.current.height+drag.current.y-e.clientY)));}} onPointerUp={()=>{drag.current=null;}} onPointerCancel={()=>{drag.current=null;}} onKeyDown={e=>{if(e.key==='ArrowUp'||e.key==='ArrowDown'){e.preventDefault();setHeight(h=>Math.max(160,Math.min(600,h+(e.key==='ArrowUp'?20:-20))));}}} />
-    <header className="flex shrink-0 items-center gap-1 border-b border-slate-500/20 px-2 py-1 overflow-x-auto">
-      <span className="px-2 text-xs font-semibold">Terminal</span>
-      <div role="tablist" aria-label="Terminal sessions" className="flex flex-1 gap-1">
-        {terminals.map(t=><button role="tab" aria-selected={selected?.id===t.id} key={t.id} className={`${button} ${selected?.id===t.id?'bg-purple-500/15':''}`} onClick={()=>send({type:'attach',id:t.id})}>{t.title}{!t.alive?' · exited':''}</button>)}
+    <header className="flex shrink-0 items-center gap-0.5 h-9 border-b border-line bg-bg-panel px-1 overflow-x-auto">
+      <span className="px-2 text-[11px] font-medium uppercase tracking-wide text-fg-secondary select-none">Terminal</span>
+      <div role="tablist" aria-label="Terminal sessions" className="flex flex-1 self-stretch items-stretch gap-0.5 min-w-0">
+        {terminals.map(t=><button role="tab" aria-selected={selected?.id===t.id} key={t.id} className={`relative inline-flex items-center px-2.5 text-[12px] transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-accent ${selected?.id===t.id?'text-fg':'text-fg-secondary hover:text-fg'}`} onClick={()=>send({type:'attach',id:t.id})}>{t.title}{!t.alive?' · exited':''}{selected?.id===t.id&&<span aria-hidden="true" className="absolute inset-x-1.5 bottom-0 h-px bg-accent"/>}</button>)}
       </div>
-      <button className={button} disabled={!connected} aria-label="New terminal" onClick={create}><Plus size={15}/></button>
+      <button className={button} disabled={!connected} aria-label="New terminal" onClick={create}><Plus size={14}/></button>
       <button className={button} disabled={!owns||!selected?.alive||!workspace.project?.config.testCommand} onClick={()=>{inputQueue.current=inputQueue.current.then(async()=>{await workspaceRef.current.flush();send({type:'input',data:(workspaceRef.current.project?.config.testCommand || '')+'\r'});}).catch(err=>setError(err.message));}}>Run checks</button>
       <button className={button} disabled={!selected} aria-label="Copy terminal selection" onClick={()=>{void navigator.clipboard.writeText(xterm.current?.getSelection() || '').catch(err=>setError(err.message));}}><Copy size={14}/></button>
       <button className={button} disabled={!owns||!selected?.alive} aria-label="Paste into terminal" onClick={()=>{void navigator.clipboard.readText().then(text=>xterm.current?.paste(text)).catch(err=>setError(err.message));}}><Clipboard size={14}/></button>
-      <button className={button} disabled={!owns||!selected?.alive} aria-label="Interrupt terminal command" onClick={()=>send({type:'input',data:'\u0003'})}><Square size={13}/></button>
+      <button className={button} disabled={!owns||!selected?.alive} aria-label="Interrupt terminal command" onClick={()=>send({type:'input',data:'\u0003'})}><Square size={12}/></button>
       <button className={button} disabled={!selected||!!selected.owner&&!owns} onClick={()=>send({type:owns?'release':'claim'})}><Hand size={14}/>{owns?'Release input':'Take control'}</button>
       <button className={button} disabled={!owns} aria-label="Close terminal session" onClick={()=>send({type:'close'})}><X size={14}/></button>
       {!connected&&workspace.project&&<button className={button} aria-label="Reconnect terminal" onClick={()=>setReconnect(n=>n+1)}><RotateCw size={14}/></button>}
-      <button className={button} aria-label="Hide terminal panel" onClick={onHide}><X size={16}/></button>
+      <button className={button} aria-label="Hide terminal panel" title="Hide panel" onClick={onHide}><ChevronDown size={14}/></button>
     </header>
-    {workspace.project?<><p className="shrink-0 px-3 py-1 text-[11px] text-slate-500">{owns?'Input is yours':'View only'} · {selected?.agent?'Shenron agent running':'Type skippy, skippy --resume, or a project command'} · {workspace.project.name}</p><div ref={container} className="min-h-0 flex-1 px-2 pb-1" /></>:<p className="p-5 text-sm">Save or open a project to start an interactive terminal.</p>}
-    {error&&<p role="alert" className="shrink-0 px-3 py-1 text-xs text-red-500">{error}</p>}
+    {workspace.project?<><p className="shrink-0 px-3 py-1 text-[11px] text-fg-muted">{owns?'Input is yours':'View only'} · {selected?.agent?'Shenron agent running':'Type skippy, skippy --resume, or a project command'} · {workspace.project.name}</p><div ref={container} className="min-h-0 flex-1 pl-3 pr-1 pb-1" /></>:<p className="p-4 text-[12px] text-fg-secondary">Save or open a project to start an interactive terminal.</p>}
+    {error&&<p role="alert" className="shrink-0 px-3 py-1 text-[12px] text-danger">{error}</p>}
   </section>;
 }
