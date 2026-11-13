@@ -3,13 +3,12 @@ import { StoredFile } from '../services/storageService';
 import { SharedFileInfo } from '../services/collabService';
 import { useTheme } from '../hooks/useTheme';
 import {
-  FileCode, FolderOpen, FolderClosed, ChevronRight, ChevronDown,
-  Trash2, Loader2, Package, Users, Plus, Minus, Folder, Check, X
+  File as FileIcon, FileCode, FileJson, FileText, FileImage, FileCog, FileSpreadsheet,
+  FileArchive, FileVideo, FileAudio, FileTerminal, FileLock, Database,
+  FolderOpen, Folder, ChevronRight, ChevronDown, ChevronsDownUp,
+  Trash2, Loader2, Package, Plus, Minus, Check, X, type LucideIcon,
 } from 'lucide-react';
 import { detectLanguage } from '../utils/detectLanguage';
-import {
-  JavaScript, TypeScript, Python, CPlusPlus, C, Java, Go, RustDark, Ruby, PHP
-} from 'developer-icons';
 
 // ─── Tree Node Types ───────────────────────────────────────────────────
 
@@ -22,20 +21,40 @@ interface TreeNode {
   repoKey?: string;
 }
 
-// ─── Language Icons ────────────────────────────────────────────────────
+// ─── File-type Icons ───────────────────────────────────────────────────
 
-const langIconMap: Record<string, { icon: any }> = {
-  JavaScript: { icon: JavaScript }, TypeScript: { icon: TypeScript },
-  Python: { icon: Python }, 'C++': { icon: CPlusPlus }, C: { icon: C },
-  Java: { icon: Java }, Go: { icon: Go }, Rust: { icon: RustDark },
-  Ruby: { icon: Ruby }, PHP: { icon: PHP },
-};
+const EXT_ICON: Record<string, LucideIcon> = {};
+const registerIcon = (icon: LucideIcon, exts: string) =>
+  exts.split(' ').forEach(ext => { EXT_ICON[ext] = icon; });
 
-function LangIcon({ language, size = 14 }: { language: string; size?: number }) {
-  const entry = langIconMap[language];
-  if (!entry) return <FileCode size={size} />;
-  const Icon = entry.icon;
-  return <span style={{ display: 'inline-flex', alignItems: 'center' }}><Icon size={size} /></span>;
+registerIcon(FileCode,
+  'js jsx mjs cjs ts tsx mts cts py pyw pyi c h cpp cc cxx hpp hxx java go rs rb erb php ' +
+  'cs kt kts swift dart lua scala r vue svelte astro html htm css scss sass less xml');
+registerIcon(FileJson, 'json jsonc json5 map');
+registerIcon(FileText, 'md mdx txt rst log adoc');
+registerIcon(FileImage, 'png jpg jpeg gif svg webp ico bmp avif');
+registerIcon(FileCog, 'yml yaml toml ini cfg conf env editorconfig dockerfile');
+registerIcon(FileSpreadsheet, 'csv tsv xls xlsx');
+registerIcon(FileArchive, 'zip tar gz tgz rar 7z');
+registerIcon(FileVideo, 'mp4 mov webm mkv');
+registerIcon(FileAudio, 'mp3 wav ogg flac');
+registerIcon(FileTerminal, 'sh bash zsh ps1 bat cmd');
+registerIcon(FileLock, 'lock');
+registerIcon(Database, 'sql db sqlite');
+
+function iconForFile(name: string, language?: string): LucideIcon {
+  const lower = name.toLowerCase();
+  const dot = lower.lastIndexOf('.');
+  const ext = dot >= 0 ? lower.slice(dot + 1) : lower;
+  const byExt = EXT_ICON[ext];
+  if (byExt) return byExt;
+  if (language && !/^(plain ?text|text)?$/i.test(language)) return FileCode;
+  return FileIcon;
+}
+
+function FileTypeIcon({ name, language, className = '' }: { name: string; language?: string; className?: string }) {
+  const Icon = iconForFile(name, language);
+  return <Icon size={14} strokeWidth={1.75} className={`shrink-0 ${className}`} aria-hidden />;
 }
 
 // ─── Build Tree ────────────────────────────────────────────────────────
@@ -78,6 +97,32 @@ function buildTree(files: StoredFile[]): TreeNode {
   return root;
 }
 
+// ─── Shared styles ─────────────────────────────────────────────────────
+
+const ROW =
+  'group relative w-full h-[22px] flex items-center gap-1.5 pr-1.5 rounded-[4px] text-[13px] leading-none ' +
+  'select-none cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-accent/70';
+const ROW_IDLE = 'text-fg-secondary hover:bg-white/5 hover:text-fg';
+const ROW_ACTIVE = 'bg-white/[0.06] text-fg';
+const ROW_ACTION =
+  'shrink-0 h-[18px] w-[18px] flex items-center justify-center rounded-[4px] text-fg-muted ' +
+  'opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-white/10 transition-opacity';
+const ICON_BTN =
+  'h-6 w-6 flex items-center justify-center rounded-ctl text-fg-secondary hover:bg-white/5 hover:text-fg ' +
+  'transition-colors outline-none focus-visible:ring-1 focus-visible:ring-accent/70';
+const SECTION_LABEL = 'text-[11px] font-medium uppercase tracking-wide text-fg-muted';
+
+const indent = (depth: number) => ({ paddingLeft: `${depth * 12 + 6}px` });
+
+/** Activate a role="treeitem" row from the keyboard like a button would. */
+const activateOnKey = (fn: () => void) => (e: React.KeyboardEvent) => {
+  if (e.target !== e.currentTarget) return;
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    fn();
+  }
+};
+
 // ─── Context Menu ──────────────────────────────────────────────────────
 
 interface ContextMenuState {
@@ -88,7 +133,7 @@ interface ContextMenuState {
 }
 
 function ContextMenu({
-  state, onClose, onAddToCollab, onRemoveFromCollab, isDark,
+  state, onClose, onAddToCollab, onRemoveFromCollab,
 }: {
   state: ContextMenuState;
   onClose: () => void;
@@ -102,37 +147,41 @@ function ContextMenu({
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
     };
+    const keyHandler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('keydown', keyHandler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('keydown', keyHandler);
+    };
   }, [onClose]);
+
+  const item =
+    'w-full h-7 flex items-center gap-2 px-2.5 text-[12px] rounded-[4px] transition-colors outline-none ' +
+    'hover:bg-white/5 focus-visible:bg-white/5';
 
   return (
     <div
       ref={ref}
-      className={`fixed z-[100] rounded-lg shadow-xl border py-1 min-w-[180px] animate-fade-in ${
-        isDark
-          ? 'bg-[#232340] border-slate-700/60 text-slate-200'
-          : 'bg-white border-slate-200 text-slate-700'
-      }`}
+      role="menu"
+      className="fixed z-[100] min-w-[180px] p-1 rounded-ctl border border-line bg-bg-elevated shadow-subtle text-fg animate-fade-in"
       style={{ left: state.x, top: state.y }}
     >
       {state.isInCollab ? (
         <button
+          role="menuitem"
           onClick={() => { onRemoveFromCollab(state.fileId); onClose(); }}
-          className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-medium transition-colors ${
-            isDark ? 'hover:bg-red-500/15 text-red-400' : 'hover:bg-red-50 text-red-500'
-          }`}
+          className={`${item} text-danger`}
         >
-          <Minus size={13} /> Remove from Collab
+          <Minus size={14} /> Remove from Collab
         </button>
       ) : (
         <button
+          role="menuitem"
           onClick={() => { onAddToCollab(state.fileId); onClose(); }}
-          className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-medium transition-colors ${
-            isDark ? 'hover:bg-orange-500/15 text-orange-400' : 'hover:bg-orange-50 text-orange-600'
-          }`}
+          className={item}
         >
-          <Plus size={13} /> Add to Collab
+          <Plus size={14} className="text-fg-secondary" /> Add to Collab
         </button>
       )}
     </div>
@@ -159,7 +208,6 @@ function TreeItem({
   const isActive = node.fileId === activeFileId;
   const isLoading = node.fileId === loadingFileId;
   const isRepoRoot = depth === 0 && node.repoKey;
-  const textMuted = isDark ? 'text-slate-400' : 'text-slate-500';
 
   const storedFile = node.fileId ? files.find(f => f.id === node.fileId) : null;
 
@@ -168,36 +216,38 @@ function TreeItem({
       if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
       return a.name.localeCompare(b.name);
     });
+    const Chevron = isExpanded ? ChevronDown : ChevronRight;
+    const FolderGlyph = isRepoRoot ? Package : isExpanded ? FolderOpen : Folder;
 
     return (
       <div>
-        <button
+        <div
+          role="treeitem"
+          aria-expanded={isExpanded}
+          tabIndex={0}
           onClick={() => toggleExpand(node.path)}
-          className={`w-full flex items-center gap-1.5 py-1 pr-2 rounded group transition-all duration-150 ease-out ${isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-100'}`}
-          style={{ paddingLeft: `${depth * 12 + 8}px` }}
+          onKeyDown={activateOnKey(() => toggleExpand(node.path))}
+          className={`${ROW} ${ROW_IDLE}`}
+          style={indent(depth)}
+          title={node.path}
         >
-          {isExpanded
-            ? <ChevronDown size={12} className={textMuted} />
-            : <ChevronRight size={12} className={textMuted} />
-          }
-          {isRepoRoot
-            ? <Package size={14} className="text-purple-400 shrink-0" />
-            : isExpanded
-              ? <FolderOpen size={14} className="text-blue-400 shrink-0" />
-              : <FolderClosed size={14} className="text-blue-400 shrink-0" />
-          }
-          <span className={`text-[13px] truncate ${isRepoRoot ? 'font-semibold text-purple-400' : isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+          <Chevron size={14} strokeWidth={1.75} className="shrink-0 text-fg-muted" aria-hidden />
+          <FolderGlyph size={14} strokeWidth={1.75} className="shrink-0 text-fg-secondary" aria-hidden />
+          <span className={`truncate ${isRepoRoot ? 'font-medium text-fg' : ''}`}>
             {node.name}
           </span>
           {isRepoRoot && onRepoDelete && (
             <button
+              type="button"
               onClick={e => { e.stopPropagation(); onRepoDelete(node.repoKey!); }}
-              className="ml-auto opacity-0 group-hover:opacity-100 hover:text-red-400 p-0.5 transition-opacity"
+              className={`${ROW_ACTION} ml-auto hover:text-danger`}
+              aria-label={`Remove repository ${node.repoKey}`}
+              title="Remove repository"
             >
-              <Trash2 size={11} />
+              <Trash2 size={12} />
             </button>
           )}
-        </button>
+        </div>
         {isExpanded && sortedChildren.map(child => (
           <TreeItem
             key={child.path} node={child} depth={depth + 1}
@@ -214,9 +264,14 @@ function TreeItem({
   }
 
   // File node
+  const select = () => { if (node.fileId) onFileSelect(node.fileId); };
   return (
-    <button
-      onClick={() => node.fileId && onFileSelect(node.fileId)}
+    <div
+      role="treeitem"
+      aria-selected={isActive}
+      tabIndex={0}
+      onClick={select}
+      onKeyDown={activateOnKey(select)}
       onContextMenu={(e) => {
         if (onContextMenu && node.fileId) {
           e.preventDefault();
@@ -226,31 +281,29 @@ function TreeItem({
       draggable
       onDragStart={() => node.fileId && onDragStart(node.fileId)}
       onDragEnd={onDragEnd}
-      className={`w-full flex items-center gap-1.5 py-1 pr-2 rounded group transition-all duration-150 ease-out cursor-grab active:cursor-grabbing ${
-        isActive
-          ? isDark
-            ? 'bg-slate-800/80 text-blue-400'
-            : 'bg-blue-50/80 text-blue-600'
-          : isDark
-            ? 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-300'
-            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-800'
-      }`}
-      style={{ paddingLeft: `${depth * 12 + 8}px` }}
+      className={`${ROW} ${isActive ? ROW_ACTIVE : ROW_IDLE}`}
+      style={indent(depth)}
+      title={node.path}
     >
+      {/* spacer aligns file icons with folder icons (chevron width) */}
+      <span className="w-[14px] shrink-0" aria-hidden />
       {isLoading
-        ? <Loader2 size={13} className="animate-spin text-purple-400 shrink-0" />
-        : <LangIcon language={storedFile?.language || ''} size={13} />
+        ? <Loader2 size={14} className="animate-spin text-fg-secondary shrink-0" aria-hidden />
+        : <FileTypeIcon name={node.name} language={storedFile?.language} className={isActive ? 'text-fg' : 'text-fg-secondary'} />
       }
-      <span className="text-[13px] truncate">{node.name}</span>
+      <span className="truncate">{node.name}</span>
       {!isCollabSection && !node.repoKey && (
         <button
-          onClick={e => { e.stopPropagation(); node.fileId && onFileDelete(node.fileId); }}
-          className="ml-auto opacity-0 group-hover:opacity-100 hover:text-red-400 p-0.5 transition-opacity"
+          type="button"
+          onClick={e => { e.stopPropagation(); if (node.fileId) onFileDelete(node.fileId); }}
+          className={`${ROW_ACTION} ml-auto hover:text-danger`}
+          aria-label={`Delete ${node.name}`}
+          title="Delete file"
         >
-          <Trash2 size={11} />
+          <Trash2 size={12} />
         </button>
       )}
-    </button>
+    </div>
   );
 }
 
@@ -287,7 +340,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   const { isDark } = useTheme();
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
-  
+
   // Inline File Creation State
   const [isCreating, setIsCreating] = useState(false);
   const [newFileName, setNewFileName] = useState('');
@@ -300,9 +353,15 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     }
   }, [triggerNewFile]);
 
-  const previewLang = useMemo(() => {
-    return newFileName.trim() ? detectLanguage(newFileName.trim(), '') : '';
-  }, [newFileName]);
+  const startCreating = () => {
+    setIsCreating(true);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
+
+  const cancelCreating = () => {
+    setIsCreating(false);
+    setNewFileName('');
+  };
 
   const handleCommitNewFile = () => {
     const name = newFileName.trim();
@@ -359,32 +418,50 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     });
   }, [sharedFiles, collabFileContents]);
 
+  const dropTarget = 'bg-white/[0.03] ring-1 ring-inset ring-accent/40';
+
   return (
-    <div className="space-y-0.5 text-sm">
+    <div className="text-[13px] font-sans text-fg-secondary">
+      {/* ── Explorer header ─────────────────────────────────────── */}
+      <div className="flex items-center h-8 pl-1.5 pr-0.5">
+        <span className={SECTION_LABEL}>Explorer</span>
+        <div className="ml-auto flex items-center gap-0.5">
+          <button
+            type="button"
+            onClick={startCreating}
+            className={ICON_BTN}
+            title="Add New File"
+            aria-label="New file"
+          >
+            <Plus size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setExpandedPaths(new Set())}
+            className={ICON_BTN}
+            title="Collapse folders"
+            aria-label="Collapse folders"
+          >
+            <ChevronsDownUp size={14} />
+          </button>
+        </div>
+      </div>
+
       {/* ── Collab Section ───────────────────────────────────────── */}
       {isInRoom && (
-        <div className="mb-3">
-          {/* Collab header */}
-          <div className={`flex items-center gap-2 px-2 py-1.5 mb-[1px] ${
-            isDark ? 'text-slate-300' : 'text-slate-700'
-          }`}>
-            <Users size={13} className={isDark ? 'text-[#CAA4F7]' : 'text-purple-600'} />
-            <span className="text-[11px] font-bold tracking-wide uppercase">
-              Collab
-            </span>
-            <span className={`text-[10px] ml-auto font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+        <div className="mb-2">
+          <div className="flex items-center h-[22px] px-1.5">
+            <span className={SECTION_LABEL}>Collab</span>
+            <span className="ml-auto text-[11px] text-fg-muted tabular-nums">
               {sharedFiles.length} file{sharedFiles.length !== 1 ? 's' : ''}
             </span>
           </div>
-          <div className={`mx-2 border-b ${isDark ? 'border-slate-700/50' : 'border-slate-200'} mb-[9px]`} />
 
           {/* Collab files / Drop zone */}
-          <div 
-            className={`relative rounded-md transition-all duration-200 min-h-[40px] ${
-              isOverCollab 
-                ? isDark ? 'bg-purple-500/10 ring-1 ring-purple-500/50' : 'bg-purple-50 ring-1 ring-purple-300'
-                : ''
-            }`}
+          <div
+            role="tree"
+            aria-label="Shared files"
+            className={`relative rounded-[4px] transition-colors min-h-[22px] ${isOverCollab ? dropTarget : ''}`}
             onDragOver={e => {
               e.preventDefault();
               if (draggedFileId && !sharedFiles.some(f => f.id === draggedFileId)) {
@@ -410,108 +487,95 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
               }
             }}
           >
-            {isOverCollab && (
-              <div className="absolute inset-0 pointer-events-none z-10 rounded-md backdrop-blur-[1.5px] bg-purple-500/10" />
-            )}
             {collabFiles.length === 0 ? (
-              <div className={`flex items-center justify-center py-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                <span className="text-[11px] italic">No files</span>
+              <div className="h-[22px] flex items-center px-1.5 text-[12px] text-fg-muted">
+                {isOverCollab ? 'Drop to share' : 'No shared files'}
               </div>
             ) : (
-              collabFiles.map((cf, index) => (
-                <button
-                  key={cf.id}
-                  onClick={() => onSelectCollabFile?.(cf.id)}
-                  onContextMenu={(e) => {
-                    if (isHost) {
-                      e.preventDefault();
-                      setContextMenu({ x: e.clientX, y: e.clientY, fileId: cf.id, isInCollab: true });
-                    }
-                  }}
-                  draggable
-                  onDragStart={() => {
-                    setDraggedFileId(cf.id);
-                    setDraggedIndex(index);
-                  }}
-                  onDragEnd={() => {
-                    setDraggedFileId(null);
-                    setDraggedIndex(null);
-                    setIsOverCollab(false);
-                    setIsOverLocal(false);
-                  }}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    if (draggedIndex !== null && draggedIndex !== index && isHost) {
-                      const newOrder = [...sharedFiles];
-                      const [removed] = newOrder.splice(draggedIndex, 1);
-                      newOrder.splice(index, 0, removed);
-                      onReorderCollabFiles?.(newOrder);
+              collabFiles.map((cf, index) => {
+                const isActive = activeFileId === cf.id;
+                const select = () => onSelectCollabFile?.(cf.id);
+                return (
+                  <div
+                    key={cf.id}
+                    role="treeitem"
+                    aria-selected={isActive}
+                    tabIndex={0}
+                    onClick={select}
+                    onKeyDown={activateOnKey(select)}
+                    onContextMenu={(e) => {
+                      if (isHost) {
+                        e.preventDefault();
+                        setContextMenu({ x: e.clientX, y: e.clientY, fileId: cf.id, isInCollab: true });
+                      }
+                    }}
+                    draggable
+                    onDragStart={() => {
+                      setDraggedFileId(cf.id);
                       setDraggedIndex(index);
-                    }
-                  }}
-                  className={`w-full flex items-center gap-1.5 py-1.5 pr-2 pl-2 rounded group transition-all duration-150 ease-out cursor-grab active:cursor-grabbing ${
-                    activeFileId === cf.id
-                      ? isDark
-                        ? 'bg-slate-800/80 text-blue-400'
-                        : 'bg-blue-50/80 text-blue-600'
-                      : isDark
-                        ? 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-300'
-                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-800'
-                  }`}
-
-                >
-                  <LangIcon language={cf.language} size={13} />
-                  <span className="text-[13px] truncate">{cf.name}</span>
-                  {isHost && (
-                    <button
-                      onClick={e => { e.stopPropagation(); onRemoveFromCollab?.(cf.id); }}
-                      className="ml-auto opacity-0 group-hover:opacity-100 hover:text-red-400 p-0.5 transition-opacity"
-                      title="Remove from collab"
-                    >
-                      <Minus size={11} />
-                    </button>
-                  )}
-                </button>
-              ))
+                    }}
+                    onDragEnd={() => {
+                      setDraggedFileId(null);
+                      setDraggedIndex(null);
+                      setIsOverCollab(false);
+                      setIsOverLocal(false);
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (draggedIndex !== null && draggedIndex !== index && isHost) {
+                        const newOrder = [...sharedFiles];
+                        const [removed] = newOrder.splice(draggedIndex, 1);
+                        newOrder.splice(index, 0, removed);
+                        onReorderCollabFiles?.(newOrder);
+                        setDraggedIndex(index);
+                      }
+                    }}
+                    className={`${ROW} ${isActive ? ROW_ACTIVE : ROW_IDLE}`}
+                    style={indent(0)}
+                    title={`${cf.name} — shared`}
+                  >
+                    <span className="w-[14px] shrink-0" aria-hidden />
+                    <FileTypeIcon name={cf.name} language={cf.language} className={isActive ? 'text-fg' : 'text-fg-secondary'} />
+                    <span className="truncate">{cf.name}</span>
+                    <span
+                      className="ml-auto mr-1 shrink-0 h-1.5 w-1.5 rounded-full bg-accent"
+                      aria-label="Shared"
+                      role="img"
+                    />
+                    {isHost && (
+                      <button
+                        type="button"
+                        onClick={e => { e.stopPropagation(); onRemoveFromCollab?.(cf.id); }}
+                        className={`${ROW_ACTION} hover:text-fg`}
+                        title="Remove from collab"
+                        aria-label={`Remove ${cf.name} from collab`}
+                      >
+                        <Minus size={12} />
+                      </button>
+                    )}
+                  </div>
+                );
+              })
             )}
-            </div>
           </div>
-        )}
+        </div>
+      )}
 
       {/* ── Regular Files Section ────────────────────────────────── */}
-      {/* ── Regular Files Section ────────────────────────────────── */}
-      <div className="mb-3">
-        <div className={`flex items-center gap-2 px-2 py-1.5 mb-[1px] ${
-          isDark ? 'text-slate-300' : 'text-slate-700'
-        }`}>
-          <Folder size={13} className={isDark ? 'text-blue-400' : 'text-blue-500'} />
-          <span className="text-[11px] font-bold tracking-wide uppercase">
-            My Files
-          </span>
-          <div className="ml-auto flex items-center gap-1.5">
-            <button
-              onClick={() => {
-                setIsCreating(true);
-                setTimeout(() => inputRef.current?.focus(), 50);
-              }}
-              className={`p-1 rounded hover:bg-purple-500/20 text-purple-400 hover:text-purple-300 transition-colors flex items-center justify-center`}
-              title="Add New File"
-            >
-              <Plus size={13} />
-            </button>
-            <span className={`text-[10px] font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+      <div>
+        {isInRoom && (
+          <div className="flex items-center h-[22px] px-1.5">
+            <span className={SECTION_LABEL}>My Files</span>
+            <span className="ml-auto text-[11px] text-fg-muted tabular-nums">
               {localFiles.length} file{localFiles.length !== 1 ? 's' : ''}
             </span>
           </div>
-        </div>
-        <div className={`mx-2 border-b ${isDark ? 'border-slate-700/50' : 'border-slate-200'} mb-[9px]`} />
-        
-        <div 
-          className={`relative rounded-md transition-all duration-200 min-h-[40px] pb-2 ${
-            isOverLocal
-              ? isDark ? 'bg-blue-500/10 ring-1 ring-blue-500/50' : 'bg-blue-50 ring-1 ring-blue-300'
-              : ''
-          }`}
+        )}
+
+        <div
+          role="tree"
+          aria-label="Files"
+          className={`relative rounded-[4px] transition-colors min-h-[22px] pb-2 ${isOverLocal ? dropTarget : ''}`}
           onDragOver={e => {
             e.preventDefault();
             if (draggedFileId && sharedFiles.some(f => f.id === draggedFileId)) {
@@ -537,70 +601,53 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
             }
           }}
         >
-          {isOverLocal && (
-            <div className="absolute inset-0 pointer-events-none z-10 rounded-md backdrop-blur-[1.5px] bg-blue-500/10" />
-          )}
-
           {/* Inline New File Creator */}
           {isCreating && (
-            <div className="px-1.5 mb-2">
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleCommitNewFile();
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleCommitNewFile();
+              }}
+              className="h-[22px] flex items-center gap-1.5 pr-0.5 mb-px rounded-[4px] border border-accent bg-bg"
+              style={indent(0)}
+            >
+              <span className="w-[14px] shrink-0" aria-hidden />
+              <FileTypeIcon name={newFileName.trim()} className="text-fg-secondary" />
+              <input
+                ref={inputRef}
+                type="text"
+                value={newFileName}
+                onChange={(e) => setNewFileName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') cancelCreating();
                 }}
-                className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border shadow-md transition-all ${
-                  isDark
-                    ? 'bg-[#1e1e2e] border-purple-500/60 ring-1 ring-purple-500/30'
-                    : 'bg-white border-purple-400 ring-1 ring-purple-300'
-                }`}
+                placeholder="filename.ext"
+                aria-label="New file name"
+                className="flex-1 min-w-0 bg-transparent text-[13px] text-fg placeholder:text-fg-muted outline-none"
+                autoFocus
+              />
+              <button
+                type="submit"
+                disabled={!newFileName.trim()}
+                className="shrink-0 h-[18px] w-[18px] flex items-center justify-center rounded-[4px] text-fg-secondary hover:bg-white/10 hover:text-fg disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                title="Create file (Enter)"
               >
-                <div className="shrink-0 flex items-center justify-center">
-                  <LangIcon language={previewLang} size={14} />
-                </div>
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={newFileName}
-                  onChange={(e) => setNewFileName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape') {
-                      setIsCreating(false);
-                      setNewFileName('');
-                    }
-                  }}
-                  placeholder="filename.ext (e.g. index.py, main.js)"
-                  className={`w-full bg-transparent text-xs font-mono outline-none ${
-                    isDark ? 'text-white placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-400'
-                  }`}
-                  autoFocus
-                />
-                <button
-                  type="submit"
-                  disabled={!newFileName.trim()}
-                  className="shrink-0 p-1 rounded hover:bg-emerald-500/20 text-emerald-400 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
-                  title="Create file (Enter)"
-                >
-                  <Check size={12} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsCreating(false);
-                    setNewFileName('');
-                  }}
-                  className="shrink-0 p-1 rounded hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-colors"
-                  title="Cancel (Esc)"
-                >
-                  <X size={12} />
-                </button>
-              </form>
-            </div>
+                <Check size={12} />
+              </button>
+              <button
+                type="button"
+                onClick={cancelCreating}
+                className="shrink-0 h-[18px] w-[18px] flex items-center justify-center rounded-[4px] text-fg-secondary hover:bg-white/10 hover:text-fg transition-colors"
+                title="Cancel (Esc)"
+              >
+                <X size={12} />
+              </button>
+            </form>
           )}
 
           {sortedChildren.length === 0 && !isCreating ? (
-            <div className={`flex items-center justify-center py-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-              <span className="text-[11px] italic">No files</span>
+            <div className="h-[22px] flex items-center px-1.5 text-[12px] text-fg-muted">
+              {isOverLocal ? 'Drop to unshare' : 'No files'}
             </div>
           ) : (
             sortedChildren.map(child => (
