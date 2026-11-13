@@ -79,7 +79,7 @@ export const App: React.FC = () => {
 
   // ─── File Handlers ───────────────────────────────────────────────────
   const handleFileCreate = useCallback((name?: string, content: string = '', language?: string) => {
-    if (workspace.project && collab.status === 'connected' && !collab.isHost) { workspace.setError('Only the room host can add project files. Ask Skippy to create shared files, or ask the host to add them.'); return; }
+    if (workspace.project && collab.status === 'connected' && !collab.isHost) { workspace.setError('Only the room host can add project files. Ask the Shenron agent to create shared files, or ask the host to add them.'); return; }
     const fileName = name?.trim() || `Snippet-${files.length + 1}`;
     const detectedLang = language || detectLanguage(fileName, content) || '';
     const newId = `file-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;

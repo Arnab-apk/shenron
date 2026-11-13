@@ -101,7 +101,7 @@ export function TerminalPanel({ workspace, room, visible, onHide }: { workspace:
       {!connected&&workspace.project&&<button className={button} aria-label="Reconnect terminal" onClick={()=>setReconnect(n=>n+1)}><RotateCw size={14}/></button>}
       <button className={button} aria-label="Hide terminal panel" onClick={onHide}><X size={16}/></button>
     </header>
-    {workspace.project?<><p className="shrink-0 px-3 py-1 text-[11px] text-slate-500">{owns?'Input is yours':'View only'} · {selected?.agent?'Skippy running':'Type skippy, skippy --resume, or a project command'} · {workspace.project.name}</p><div ref={container} className="min-h-0 flex-1 px-2 pb-1" /></>:<p className="p-5 text-sm">Save or open a project to start an interactive terminal.</p>}
+    {workspace.project?<><p className="shrink-0 px-3 py-1 text-[11px] text-slate-500">{owns?'Input is yours':'View only'} · {selected?.agent?'Shenron agent running':'Type skippy, skippy --resume, or a project command'} · {workspace.project.name}</p><div ref={container} className="min-h-0 flex-1 px-2 pb-1" /></>:<p className="p-5 text-sm">Save or open a project to start an interactive terminal.</p>}
     {error&&<p role="alert" className="shrink-0 px-3 py-1 text-xs text-red-500">{error}</p>}
   </section>;
 }

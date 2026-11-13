@@ -383,7 +383,7 @@ export const CodeRunner: React.FC<CodeRunnerProps> = ({
         {/* Startup Welcome Header */}
         <div className="text-slate-400 text-[11px] leading-relaxed border border-slate-800/60 bg-[#0d121e]/60 rounded-md p-2.5 font-mono select-none">
           <div className="text-emerald-400 font-bold flex items-center gap-2">
-            <span>● Skiffy Cloud Terminal v2.0</span>
+            <span>● Shenron Cloud Terminal v2.0</span>
             <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
               OnlineCompiler Cloud
             </span>

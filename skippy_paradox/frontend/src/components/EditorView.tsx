@@ -11,7 +11,7 @@ import { CodeRunner } from './CodeRunner';
 import { TerminalPanel } from './TerminalPanel';
 import { WorkspaceBar } from './WorkspaceBar';
 import { WorkspaceController } from '../hooks/useWorkspace';
-import DotField from './DotField';
+import { WorkspaceWelcome } from './WorkspaceWelcome';
 import { StoredFile } from '../services/storageService';
 import { hydrateFiles } from '../services/harnessService';
 import { SharedFileInfo } from '../services/collabService';
@@ -235,9 +235,8 @@ export const EditorView: React.FC<EditorViewProps> = ({
             className={`md:hidden p-1.5 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500/50 ${isDark ? 'text-slate-400 hover:bg-slate-800' : 'text-slate-500 hover:bg-slate-200'}`}>
             <Menu size={20} />
           </button>
-          <img src="/CodeCollab-logo.png" alt="Skiffy Logo" className="w-8 h-8 sm:w-10 sm:h-10 object-contain" />
-          <span className={`hidden sm:inline font-black tracking-tighter quantico-font text-[24px] sm:text-[28px] ${textPrimary} select-none`}>
-            Skiffy
+          <span className="font-sans font-semibold tracking-tight text-[15px] text-fg select-none">
+            Shenron
           </span>
           <button 
             onClick={toggleTheme}
@@ -488,35 +487,12 @@ export const EditorView: React.FC<EditorViewProps> = ({
           {/* Editor panel */}
           <Panel defaultSize={isGeminiOpen && isChatOpen ? "44%" : isGeminiOpen || isChatOpen ? "56%" : "82%"} minSize="30%" className="flex flex-col min-w-0">
             {!activeFile ? (
-              <div className={`flex-1 flex flex-col items-center justify-center ${bgEditor} h-full relative overflow-hidden`}>
-                {/* DotField Background */}
-                <div className="absolute inset-0 z-0">
-                  <DotField
-                    dotRadius={2}
-                    dotSpacing={14}
-                    bulgeStrength={80}
-                    glowRadius={200}
-                    sparkle={true}
-                    waveAmplitude={0}
-                    gradientFrom={isDark ? 'rgba(202, 164, 247, 0.45)' : 'rgba(136, 57, 239, 0.35)'}
-                    gradientTo={isDark ? 'rgba(139, 92, 246, 0.30)' : 'rgba(168, 85, 247, 0.25)'}
-                    glowColor={isDark ? '#1E1E2A' : '#E5E8EE'}
-                  />
-                </div>
-                {/* Content */}
-                <div className="text-center max-w-md px-8 relative z-10">
-                  <FolderOpen size={48} className={`mx-auto mb-8 ${isDark ? 'text-blue-400/50' : 'text-blue-500/50'}`} />
-                  <h2 className={`text-xl font-semibold mb-2 ${textPrimary}`}>Welcome to Skiffy</h2>
-                  <div className="flex gap-3 justify-center">
-                    <button onClick={() => setTriggerNewFile(prev => prev + 1)} className="flex items-center gap-2 px-6 py-3 bg-[#CAA4F7] hover:bg-[#D4B5F9] text-[#1E1E2A] rounded-lg text-sm font-bold transition-all shadow-md active:scale-95">
-                      <Plus size={18} /> New File
-                    </button>
-                    <button onClick={() => onFileCreate()} className={`flex items-center gap-2 px-5 py-3 rounded-lg text-sm font-semibold border transition-all active:scale-95 shadow-sm ${isDark ? 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-slate-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'}`}>
-                      Snippet
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <WorkspaceWelcome
+                onCreateRoom={onOpenCollab}
+                onJoinRoom={onOpenCollab}
+                onNewFile={() => setTriggerNewFile(prev => prev + 1)}
+                onNewSnippet={() => onFileCreate()}
+              />
             ) : (
               <Group orientation="horizontal" className="flex-1 relative overflow-hidden h-full">
                 {/* Editor Panel */}
@@ -672,34 +648,13 @@ export const EditorView: React.FC<EditorViewProps> = ({
           </div>
 
           {mobilePane === 'editor' && !activeFile ? (
-            <div className={`flex-1 flex flex-col items-center justify-center ${bgEditor} relative overflow-hidden`}>
-              {/* DotField Background */}
-              <div className="absolute inset-0 z-0">
-                <DotField
-                  dotRadius={2}
-                  dotSpacing={14}
-                  bulgeStrength={80}
-                  glowRadius={200}
-                  sparkle={true}
-                  waveAmplitude={0}
-                  gradientFrom={isDark ? 'rgba(202, 164, 247, 0.45)' : 'rgba(136, 57, 239, 0.35)'}
-                  gradientTo={isDark ? 'rgba(139, 92, 246, 0.30)' : 'rgba(168, 85, 247, 0.25)'}
-                  glowColor={isDark ? '#1E1E2A' : '#E5E8EE'}
-                />
-              </div>
-              {/* Content */}
-              <div className="text-center max-w-md px-8 relative z-10">
-                <FolderOpen size={48} className={`mx-auto mb-8 ${isDark ? 'text-blue-400/50' : 'text-blue-500/50'}`} />
-                <div className="flex gap-2.5 justify-center">
-                  <button onClick={() => setTriggerNewFile(prev => prev + 1)} className="flex items-center gap-2 px-5 py-2.5 bg-[#CAA4F7] hover:bg-[#D4B5F9] text-[#1E1E2A] rounded-lg text-sm font-bold transition-all shadow-md">
-                    <Plus size={16} /> New File
-                  </button>
-                  <button onClick={() => onFileCreate()} className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold border ${isDark ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
-                    Snippet
-                  </button>
-                </div>
-              </div>
-            </div>
+            <WorkspaceWelcome
+              compact
+              onCreateRoom={onOpenCollab}
+              onJoinRoom={onOpenCollab}
+              onNewFile={() => setTriggerNewFile(prev => prev + 1)}
+              onNewSnippet={() => onFileCreate()}
+            />
           ) : mobilePane === 'editor' ? (
             <div className="flex-1 relative overflow-hidden">
               {collab.status === 'waiting-approval' && (
