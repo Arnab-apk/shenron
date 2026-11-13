@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useTheme } from '../hooks/useTheme';
 import {
-  X, Github, Upload, Loader2, CheckCircle2, AlertCircle,
+  Github, Upload, Loader2, CheckCircle2, AlertCircle,
   ExternalLink, Key, GitBranch, MessageSquare, Files, FileCode, Users, Trash2
 } from 'lucide-react';
 import { StoredFile } from '../services/storageService';
@@ -9,9 +8,9 @@ import {
   pushFilesToGitHub, PushResult, getStoredUser, GitHubUser
 } from '../services/githubService';
 import { soundEffects } from '../utils/soundEffects';
-import BorderGlow from './BorderGlow';
 import { CollabProvider } from '../services/collabService';
 import { hydrateFiles } from '../services/harnessService';
+import { ModalSurface, modalStyles as ms } from './ModalSurface';
 
 // Separate storage key for push PAT — never shares with OAuth read token
 const PUSH_PAT_KEY = 'skiffy-push-pat';
@@ -28,6 +27,8 @@ interface Props {
 
 type Scope = 'all' | 'collab' | 'active';
 
+const labelWithIcon = 'mb-1 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-fg-muted';
+
 export const GitHubPushModal: React.FC<Props> = ({
   isOpen,
   onClose,
@@ -37,8 +38,6 @@ export const GitHubPushModal: React.FC<Props> = ({
   sharedFiles = [],
   provider,
 }) => {
-  const { isDark } = useTheme();
-
   // Destination state
   const defaultRepo = useMemo(() => {
     // If active file or any file has repo origin, use that
@@ -51,7 +50,7 @@ export const GitHubPushModal: React.FC<Props> = ({
 
   const [repoString, setRepoString] = useState(defaultRepo);
   const [branch, setBranch] = useState('main');
-  const [commitMessage, setCommitMessage] = useState('feat: collaborative updates from Skiffy');
+  const [commitMessage, setCommitMessage] = useState('feat: collaborative updates from Shenron');
   const [scope, setScope] = useState<Scope>(isInRoom && sharedFiles.length > 0 ? 'collab' : 'all');
 
   // Auth state — uses a dedicated PAT key, never the OAuth read token
@@ -102,8 +101,6 @@ export const GitHubPushModal: React.FC<Props> = ({
     }));
   }, [scope, activeFile, isInRoom, sharedFiles, files]);
 
-  if (!isOpen) return null;
-
   const handlePush = async () => {
     setError(null);
     setPushResult(null);
@@ -151,7 +148,7 @@ export const GitHubPushModal: React.FC<Props> = ({
         owner,
         repo,
         branch: branch.trim() || 'main',
-        message: commitMessage.trim() || 'feat: updates from Skiffy',
+        message: commitMessage.trim() || 'feat: updates from Shenron',
         files: snapshot.map(f => ({ path: f.path || f.name, content: f.content })),
         token: trimmedToken,
       });
@@ -167,315 +164,242 @@ export const GitHubPushModal: React.FC<Props> = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={onClose}>
-      <BorderGlow
-        glowColor={isDark ? '270 80 70' : '270 60 50'}
-        backgroundColor={isDark ? '#1e1e2e' : '#ffffff'}
-        borderRadius={20}
-        glowRadius={30}
-        glowIntensity={0.8}
-        className="w-full max-w-xl transition-all duration-300"
+  const scopeBtn = (active: boolean) =>
+    `flex min-w-0 flex-col items-start justify-center gap-0.5 rounded-ctl border px-2.5 py-1.5 text-left text-[12px] font-medium transition-colors disabled:pointer-events-none disabled:opacity-40 ${
+      active
+        ? 'border-accent bg-[#56C0F2]/10 text-fg'
+        : 'border-line bg-bg-elevated text-fg-secondary hover:border-line-hover hover:text-fg'
+    }`;
+
+  const footer = (
+    <>
+      <button type="button" onClick={onClose} disabled={isPushing} className={ms.btnSecondary}>
+        Close
+      </button>
+      <button
+        type="button"
+        onClick={handlePush}
+        disabled={isPushing || filesToPush.length === 0}
+        className={ms.btnPrimary}
       >
-        <div
-          className={`relative w-full rounded-2xl shadow-2xl overflow-hidden flex flex-col ${
-            isDark ? 'bg-[#1e1e2e] text-slate-200' : 'bg-white text-slate-800'
-          }`}
-          onClick={e => e.stopPropagation()}
-        >
+        {isPushing ? (
+          <>
+            <Loader2 size={14} className="animate-spin" />
+            Pushing...
+          </>
+        ) : (
+          <>
+            <Upload size={14} />
+            Commit & Push
+          </>
+        )}
+      </button>
+    </>
+  );
 
-        {/* Modal Header */}
-        <div className={`flex items-center justify-between px-6 py-4 border-b ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
-          <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-xl ${isDark ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>
-              <Github size={20} />
-            </div>
-            <div>
-              <h2 className="text-base font-bold flex items-center gap-2">
-                Push to GitHub
-                {isInRoom && (
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                    <Users size={10} /> Collab Session
-                  </span>
-                )}
-              </h2>
-              <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                Commit and push your collaborative code directly to your GitHub repository
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className={`p-1.5 rounded-lg transition-colors ${
-              isDark ? 'hover:bg-slate-800 text-slate-400 hover:text-slate-200' : 'hover:bg-slate-100 text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Modal Body */}
-        <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto custom-scrollbar">
-          {/* Success Banner */}
-          {pushResult && (
-            <div className={`p-4 rounded-xl border flex flex-col gap-2 ${
-              isDark ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-emerald-50 border-emerald-300 text-emerald-800'
-            }`}>
-              <div className="flex items-center gap-2 font-bold text-sm">
-                <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />
-                <span>Successfully pushed {pushResult.filesPushed} file(s)!</span>
-              </div>
-              <p className="text-xs opacity-90">
-                Commit SHA: <code className="font-mono bg-black/20 px-1 py-0.5 rounded">{pushResult.commitSha.slice(0, 7)}</code>
-              </p>
-              <a
-                href={pushResult.commitUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs font-bold underline hover:opacity-80 mt-1"
-              >
-                View commit on GitHub <ExternalLink size={12} />
-              </a>
-            </div>
+  return (
+    <ModalSurface
+      isOpen={isOpen}
+      onClose={onClose}
+      icon={<Github size={16} />}
+      title={
+        <>
+          Push to GitHub
+          {isInRoom && (
+            <span className="inline-flex h-5 items-center gap-1 rounded-ctl border border-line bg-bg-elevated px-1.5 text-[11px] font-medium text-fg-secondary">
+              <Users size={11} className="text-success" /> Collab session
+            </span>
           )}
-
-          {/* Error Banner */}
-          {error && (
-            <div className={`p-3.5 rounded-xl border flex items-start gap-2.5 text-xs ${
-              isDark ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-red-50 border-red-200 text-red-600'
-            }`}>
-              <AlertCircle size={16} className="shrink-0 mt-0.5" />
-              <div className="flex-1 leading-relaxed">{error}</div>
+        </>
+      }
+      ariaLabel="Push to GitHub"
+      subtitle="Commit and push your code directly to a GitHub repository."
+      footer={footer}
+      footerStart={pushStatus || (isPushing ? 'Working...' : `Ready to push ${filesToPush.length} files`)}
+      width={520}
+    >
+      <div className="space-y-3">
+        {/* Success Banner */}
+        {pushResult && (
+          <div className={`${ms.success} flex-col gap-1`}>
+            <div className="flex items-center gap-2 font-medium">
+              <CheckCircle2 size={14} className="shrink-0" />
+              <span>Successfully pushed {pushResult.filesPushed} file(s)!</span>
             </div>
-          )}
-
-          {/* Destination Repo & Branch */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="sm:col-span-2 space-y-1.5">
-              <label className="text-xs font-semibold flex items-center gap-1.5">
-                <Github size={13} /> Repository (owner/repo)
-              </label>
-              <input
-                type="text"
-                value={repoString}
-                onChange={e => setRepoString(e.target.value)}
-                placeholder="devspideyy/skippy_paradox"
-                className={`w-full px-3 py-2 text-xs font-mono rounded-lg border outline-none transition-colors ${
-                  isDark
-                    ? 'bg-slate-900/60 border-slate-700/80 focus:border-purple-500 text-slate-100'
-                    : 'bg-slate-50 border-slate-300 focus:border-purple-500 text-slate-900'
-                }`}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold flex items-center gap-1.5">
-                <GitBranch size={13} /> Branch
-              </label>
-              <input
-                type="text"
-                value={branch}
-                onChange={e => setBranch(e.target.value)}
-                placeholder="main"
-                className={`w-full px-3 py-2 text-xs font-mono rounded-lg border outline-none transition-colors ${
-                  isDark
-                    ? 'bg-slate-900/60 border-slate-700/80 focus:border-purple-500 text-slate-100'
-                    : 'bg-slate-50 border-slate-300 focus:border-purple-500 text-slate-900'
-                }`}
-              />
-            </div>
+            <p className="text-fg-secondary">
+              Commit SHA: <code className="rounded bg-bg px-1 py-0.5 font-mono text-[11px] text-fg">{pushResult.commitSha.slice(0, 7)}</code>
+            </p>
+            <a
+              href={pushResult.commitUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 font-medium text-accent hover:underline"
+            >
+              View commit on GitHub <ExternalLink size={12} />
+            </a>
           </div>
+        )}
 
-          {/* Commit Message */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold flex items-center gap-1.5">
-              <MessageSquare size={13} /> Commit Message
+        {/* Error Banner */}
+        {error && (
+          <div role="alert" className={ms.error}>
+            <AlertCircle size={14} className="mt-px shrink-0" />
+            <div className="flex-1 leading-relaxed">{error}</div>
+          </div>
+        )}
+
+        {/* Destination Repo & Branch */}
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="sm:col-span-2">
+            <label htmlFor="gh-push-repo" className={labelWithIcon}>
+              <Github size={12} /> Repository
             </label>
             <input
+              id="gh-push-repo"
               type="text"
-              value={commitMessage}
-              onChange={e => setCommitMessage(e.target.value)}
-              placeholder="feat: collaborative updates from Skiffy"
-              className={`w-full px-3 py-2 text-xs rounded-lg border outline-none transition-colors ${
-                isDark
-                  ? 'bg-slate-900/60 border-slate-700/80 focus:border-purple-500 text-slate-100'
-                  : 'bg-slate-50 border-slate-300 focus:border-purple-500 text-slate-900'
-              }`}
+              value={repoString}
+              onChange={e => setRepoString(e.target.value)}
+              placeholder="owner/repo"
+              className={`${ms.input} font-mono`}
             />
           </div>
-
-          {/* Scope Selector */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold flex items-center gap-1.5">
-              <Files size={13} /> Files to Include ({filesToPush.length})
+          <div>
+            <label htmlFor="gh-push-branch" className={labelWithIcon}>
+              <GitBranch size={12} /> Branch
             </label>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => setScope('all')}
-                className={`flex flex-col items-center justify-center p-2.5 rounded-lg border text-xs font-medium transition-all ${
-                  scope === 'all'
-                    ? (isDark ? 'bg-purple-500/20 border-purple-500 text-purple-300' : 'bg-purple-50 border-purple-400 text-purple-700')
-                    : (isDark ? 'border-slate-800 hover:bg-slate-800/40 text-slate-400' : 'border-slate-200 hover:bg-slate-50 text-slate-600')
-                }`}
-              >
-                <span>All Workspace</span>
-                <span className="text-[10px] opacity-75">{files.length} files</span>
-              </button>
-
-              {isInRoom && (
-                <button
-                  type="button"
-                  onClick={() => setScope('collab')}
-                  className={`flex flex-col items-center justify-center p-2.5 rounded-lg border text-xs font-medium transition-all ${
-                    scope === 'collab'
-                      ? (isDark ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300' : 'bg-emerald-50 border-emerald-400 text-emerald-700')
-                      : (isDark ? 'border-slate-800 hover:bg-slate-800/40 text-slate-400' : 'border-slate-200 hover:bg-slate-50 text-slate-600')
-                  }`}
-                >
-                  <span>Collab Shared</span>
-                  <span className="text-[10px] opacity-75">{sharedFiles.length} files</span>
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => setScope('active')}
-                disabled={!activeFile}
-                className={`flex flex-col items-center justify-center p-2.5 rounded-lg border text-xs font-medium transition-all disabled:opacity-40 ${
-                  scope === 'active'
-                    ? (isDark ? 'bg-blue-500/20 border-blue-500 text-blue-300' : 'bg-blue-50 border-blue-400 text-blue-700')
-                    : (isDark ? 'border-slate-800 hover:bg-slate-800/40 text-slate-400' : 'border-slate-200 hover:bg-slate-50 text-slate-600')
-                }`}
-              >
-                <span>Active File</span>
-                <span className="text-[10px] opacity-75 truncate max-w-[120px]">{activeFile ? activeFile.name : 'None'}</span>
-              </button>
-            </div>
-
-            {/* File List Chips */}
-            <div className={`flex flex-wrap gap-1.5 p-2 rounded-lg border max-h-24 overflow-y-auto custom-scrollbar ${
-              isDark ? 'bg-slate-900/40 border-slate-800/80' : 'bg-slate-50 border-slate-200'
-            }`}>
-              {filesToPush.map((f, i) => (
-                <span
-                  key={i}
-                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono ${
-                    isDark ? 'bg-slate-800 text-slate-300' : 'bg-white text-slate-700 border border-slate-200'
-                  }`}
-                >
-                  <FileCode size={11} className="text-purple-400 shrink-0" />
-                  <span className="truncate max-w-[140px]">{f.path}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* GitHub Auth Token */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold flex items-center gap-1.5">
-                <Key size={13} /> GitHub Personal Access Token
-              </label>
-              {storedUser && (
-                <span className="text-[11px] text-purple-400 font-medium">
-                  Logged in as @{storedUser.login}
-                </span>
-              )}
-            </div>
-
-            {/* Token hint banner */}
-            <div className={`text-[11px] px-3 py-2 rounded-lg flex items-start gap-2 ${
-              isDark ? 'bg-amber-500/10 border border-amber-500/20 text-amber-300' : 'bg-amber-50 border border-amber-200 text-amber-700'
-            }`}>
-              <AlertCircle size={12} className="mt-0.5 shrink-0" />
-              <span>
-                Requires a <strong>Personal Access Token</strong> (PAT) with <code className="font-mono">repo</code> scope.
-                {' '}This is <em>different</em> from your GitHub login — it won't pick up the Import OAuth token automatically.
-              </span>
-            </div>
-
-            <div className="relative">
-              <input
-                type="password"
-                value={token}
-                onChange={e => { setToken(e.target.value); setTokenOk(null); setError(null); }}
-                placeholder="ghp_... or github_pat_..."
-                className={`w-full px-3 py-2 pr-8 text-xs font-mono rounded-lg border outline-none transition-colors ${
-                  isDark
-                    ? 'bg-slate-900/60 border-slate-700/80 focus:border-purple-500 text-slate-100'
-                    : 'bg-slate-50 border-slate-300 focus:border-purple-500 text-slate-900'
-                } ${tokenOk === false ? (isDark ? 'border-red-500' : 'border-red-400') : ''}`}
-              />
-              {token && (
-                <button
-                  type="button"
-                  onClick={() => { setToken(''); setTokenOk(null); localStorage.removeItem(PUSH_PAT_KEY); }}
-                  title="Clear saved token"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-400 transition-colors"
-                >
-                  <Trash2 size={12} />
-                </button>
-              )}
-            </div>
-
-            <div className="flex items-center justify-between pt-1">
-              <label className="flex items-center gap-2 text-[11px] cursor-pointer opacity-80 hover:opacity-100">
-                <input
-                  type="checkbox"
-                  checked={saveTokenLocally}
-                  onChange={e => setSaveTokenLocally(e.target.checked)}
-                  className="rounded border-slate-600 text-purple-600 focus:ring-purple-500"
-                />
-                Remember token on this device
-              </label>
-              <a
-                href="https://github.com/settings/tokens/new?scopes=repo"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[11px] text-purple-400 hover:underline flex items-center gap-1"
-              >
-                Generate Token <ExternalLink size={10} />
-              </a>
-            </div>
+            <input
+              id="gh-push-branch"
+              type="text"
+              value={branch}
+              onChange={e => setBranch(e.target.value)}
+              placeholder="main"
+              className={`${ms.input} font-mono`}
+            />
           </div>
         </div>
 
-        {/* Modal Footer */}
-        <div className={`flex items-center justify-between px-6 py-4 border-t ${isDark ? 'border-slate-800 bg-slate-900/40' : 'border-slate-100 bg-slate-50'}`}>
-          <div className="text-xs text-slate-400 truncate max-w-[240px]">
-            {pushStatus || (isPushing ? 'Working...' : `Ready to push ${filesToPush.length} files`)}
+        {/* Commit Message */}
+        <div>
+          <label htmlFor="gh-push-message" className={labelWithIcon}>
+            <MessageSquare size={12} /> Commit message
+          </label>
+          <input
+            id="gh-push-message"
+            type="text"
+            value={commitMessage}
+            onChange={e => setCommitMessage(e.target.value)}
+            placeholder="feat: collaborative updates from Shenron"
+            className={ms.input}
+          />
+        </div>
+
+        {/* Scope Selector */}
+        <div>
+          <span className={labelWithIcon}>
+            <Files size={12} /> Files to include ({filesToPush.length})
+          </span>
+          <div className={`grid gap-2 ${isInRoom ? 'grid-cols-3' : 'grid-cols-2'}`}>
+            <button type="button" onClick={() => setScope('all')} aria-pressed={scope === 'all'} className={scopeBtn(scope === 'all')}>
+              <span>All Workspace</span>
+              <span className="text-[11px] font-normal text-fg-muted">{files.length} files</span>
+            </button>
+
+            {isInRoom && (
+              <button type="button" onClick={() => setScope('collab')} aria-pressed={scope === 'collab'} className={scopeBtn(scope === 'collab')}>
+                <span>Collab Shared</span>
+                <span className="text-[11px] font-normal text-fg-muted">{sharedFiles.length} files</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setScope('active')}
+              disabled={!activeFile}
+              aria-pressed={scope === 'active'}
+              className={scopeBtn(scope === 'active')}
+            >
+              <span>Active File</span>
+              <span className="w-full truncate text-[11px] font-normal text-fg-muted">{activeFile ? activeFile.name : 'None'}</span>
+            </button>
           </div>
-          <div className="flex items-center gap-2.5">
-            <button
-              onClick={onClose}
-              disabled={isPushing}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold transition-colors ${
-                isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
-              }`}
+
+          {/* File List Chips */}
+          <div className="mt-2 flex max-h-24 flex-wrap gap-1 overflow-y-auto rounded-ctl border border-line bg-bg p-1.5 custom-scrollbar">
+            {filesToPush.length === 0 && <span className="px-1 text-[12px] text-fg-muted">No files selected</span>}
+            {filesToPush.map((f, i) => (
+              <span
+                key={i}
+                className="inline-flex h-5 items-center gap-1 rounded border border-line bg-bg-elevated px-1.5 font-mono text-[11px] text-fg-secondary"
+              >
+                <FileCode size={11} className="shrink-0 text-fg-muted" />
+                <span className="max-w-[140px] truncate">{f.path}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* GitHub Auth Token */}
+        <div>
+          <div className="flex items-center justify-between">
+            <label htmlFor="gh-push-token" className={labelWithIcon}>
+              <Key size={12} /> Personal access token
+            </label>
+            {storedUser && (
+              <span className="mb-1 text-[11px] text-fg-secondary">
+                Logged in as @{storedUser.login}
+              </span>
+            )}
+          </div>
+
+          <div className="relative">
+            <input
+              id="gh-push-token"
+              type="password"
+              value={token}
+              onChange={e => { setToken(e.target.value); setTokenOk(null); setError(null); }}
+              placeholder="ghp_... or github_pat_..."
+              className={`${ms.input} pr-8 font-mono ${tokenOk === false ? 'border-danger' : ''}`}
+            />
+            {token && (
+              <button
+                type="button"
+                onClick={() => { setToken(''); setTokenOk(null); localStorage.removeItem(PUSH_PAT_KEY); }}
+                title="Clear saved token"
+                aria-label="Clear saved token"
+                className="absolute right-1 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-ctl text-fg-muted transition-colors hover:bg-white/5 hover:text-danger"
+              >
+                <Trash2 size={12} />
+              </button>
+            )}
+          </div>
+
+          {/* Token hint */}
+          <p className="mt-1.5 text-[11px] leading-4 text-fg-muted">
+            Requires a PAT with <code className="font-mono text-fg-secondary">repo</code> scope. This is
+            {' '}<em>different</em> from your GitHub login — it won't pick up the Import OAuth token automatically.
+          </p>
+
+          <div className="mt-2 flex items-center justify-between">
+            <label className="flex cursor-pointer items-center gap-2 text-[12px] text-fg-secondary hover:text-fg">
+              <input
+                type="checkbox"
+                checked={saveTokenLocally}
+                onChange={e => setSaveTokenLocally(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-line bg-bg accent-[#56C0F2]"
+              />
+              Remember token on this device
+            </label>
+            <a
+              href="https://github.com/settings/tokens/new?scopes=repo"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-[12px] text-accent hover:underline"
             >
-              Close
-            </button>
-            <button
-              onClick={handlePush}
-              disabled={isPushing || filesToPush.length === 0}
-              className="flex items-center gap-2 px-5 py-2 rounded-lg text-xs font-bold text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-md transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
-            >
-              {isPushing ? (
-                <>
-                  <Loader2 size={14} className="animate-spin" />
-                  Pushing...
-                </>
-              ) : (
-                <>
-                  <Upload size={14} />
-                  Commit & Push
-                </>
-              )}
-            </button>
+              Generate token <ExternalLink size={11} />
+            </a>
           </div>
         </div>
       </div>
-    </BorderGlow>
-  </div>
-);
+    </ModalSurface>
+  );
 };
