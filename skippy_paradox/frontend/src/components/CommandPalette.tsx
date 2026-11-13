@@ -1,12 +1,10 @@
 /**
- * CommandPalette — VS Code-style command palette for power users.
+ * CommandPalette — Linear-style command palette for power users.
  * Quick access to all actions with fuzzy search.
  */
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useTheme } from '../hooks/useTheme';
-import { Search, Command } from 'lucide-react';
-import DotField from './DotField';
+import React, { useState, useEffect, useRef, useMemo, useId } from 'react';
+import { Search } from 'lucide-react';
 
 interface Command {
   id: string;
@@ -23,16 +21,23 @@ interface CommandPaletteProps {
   commands: Command[];
 }
 
+const Kbd: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <kbd className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-[4px] border border-line bg-bg text-[10px] font-sans font-medium text-fg-muted leading-none">
+    {children}
+  </kbd>
+);
+
 export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, commands }) => {
-  const { isDark } = useTheme();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const listId = useId();
 
   // Fuzzy search
   const filteredCommands = useMemo(() => {
     if (!query.trim()) return commands;
-    
+
     const lowerQuery = query.toLowerCase();
     return commands.filter(cmd => {
       const labelMatch = cmd.label.toLowerCase().includes(lowerQuery);
@@ -82,44 +87,38 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose,
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, selectedIndex, filteredCommands, onClose]);
 
+  // Keep the active row in view while navigating with the keyboard
+  useEffect(() => {
+    if (!isOpen) return;
+    const el = listRef.current?.querySelector<HTMLElement>(`[data-index="${selectedIndex}"]`);
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [selectedIndex, isOpen]);
+
   if (!isOpen) return null;
 
-  const bg = isDark ? 'bg-[#1a1a2e]' : 'bg-white';
-  const border = isDark ? 'border-slate-700/50' : 'border-slate-200';
-  const textP = isDark ? 'text-white' : 'text-slate-900';
-  const textM = isDark ? 'text-slate-400' : 'text-slate-500';
-  const inputBg = isDark ? 'bg-[#232340]' : 'bg-slate-50';
+  const activeId = filteredCommands[selectedIndex] ? `${listId}-${selectedIndex}` : undefined;
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-start justify-center pt-[15vh] px-4">
+    <div className="fixed inset-0 z-[200] flex items-start justify-center pt-[14vh] px-4 font-sans">
       {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" 
+      <div
+        className="absolute inset-0 bg-black/50 animate-fade-in"
+        style={{ animationDuration: '120ms' }}
         onClick={onClose}
       />
 
       {/* Palette */}
-      <div 
-        className={`relative w-full max-w-2xl ${bg} rounded-2xl shadow-2xl border ${border} overflow-hidden animate-fade-in-up`}
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Command palette"
+        className="relative w-full max-w-[560px] rounded-panel border border-line bg-bg-elevated shadow-[0_16px_48px_rgba(0,0,0,0.5)] overflow-hidden animate-fade-in-up"
+        style={{ animationDuration: '140ms' }}
         onClick={e => e.stopPropagation()}
       >
-        {/* DotField Background */}
-        <div className="absolute inset-0 z-0 opacity-35 pointer-events-none">
-          <DotField
-            dotRadius={1.5}
-            dotSpacing={16}
-            bulgeStrength={70}
-            glowRadius={160}
-            sparkle={true}
-            waveAmplitude={0}
-            gradientFrom={isDark ? 'rgba(202, 164, 247, 0.30)' : 'rgba(136, 57, 239, 0.25)'}
-            gradientTo={isDark ? 'rgba(139, 92, 246, 0.18)' : 'rgba(168, 85, 247, 0.18)'}
-            glowColor={isDark ? '#1a1a2e' : '#ffffff'}
-          />
-        </div>
         {/* Search Input */}
-        <div className={`flex items-center gap-3 px-4 py-4 border-b ${border} relative z-10`}>
-          <Search size={20} className={textM} />
+        <div className="flex items-center gap-2.5 h-12 px-4 border-b border-line">
+          <Search size={16} className="shrink-0 text-fg-muted" aria-hidden />
           <input
             ref={inputRef}
             type="text"
@@ -128,73 +127,82 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose,
               setQuery(e.target.value);
               setSelectedIndex(0);
             }}
-            placeholder="Type a command or search..."
-            className={`flex-1 bg-transparent text-base ${textP} placeholder:${textM} focus:outline-none`}
+            placeholder="Type a command or search…"
+            role="combobox"
+            aria-expanded="true"
+            aria-controls={listId}
+            aria-activedescendant={activeId}
+            aria-autocomplete="list"
+            aria-label="Search commands"
+            className="flex-1 min-w-0 bg-transparent text-[14px] text-fg placeholder:text-fg-muted outline-none"
           />
-          <kbd className={`px-2 py-1 rounded text-xs font-mono ${inputBg} ${textM} border ${border}`}>
-            ESC
-          </kbd>
+          <Kbd>Esc</Kbd>
         </div>
 
         {/* Commands List */}
-        <div className="max-h-[400px] overflow-y-auto custom-scrollbar relative z-10">
+        <div
+          ref={listRef}
+          id={listId}
+          role="listbox"
+          aria-label="Commands"
+          className="max-h-[360px] overflow-y-auto custom-scrollbar p-1"
+        >
           {filteredCommands.length === 0 ? (
-            <div className={`flex flex-col items-center justify-center py-12 ${textM}`}>
-              <Search size={32} className="mb-2 opacity-40" />
-              <p className="text-sm">No commands found</p>
+            <div className="px-3 py-6 text-center text-[13px] text-fg-muted">
+              No commands found
             </div>
           ) : (
-            filteredCommands.map((cmd, index) => (
-              <button
-                key={cmd.id}
-                onClick={() => {
-                  cmd.action();
-                  onClose();
-                }}
-                onMouseEnter={() => setSelectedIndex(index)}
-                className={`w-full flex items-center gap-3 px-4 py-3 transition-colors ${
-                  index === selectedIndex
-                    ? isDark ? 'bg-purple-500/15 border-l-2 border-purple-500' : 'bg-purple-50 border-l-2 border-purple-500'
-                    : isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'
-                }`}
-              >
-                <div className={`flex items-center justify-center w-8 h-8 rounded-lg ${
-                  index === selectedIndex
-                    ? 'bg-purple-500/20 text-purple-400'
-                    : isDark ? 'bg-slate-700/50 text-slate-400' : 'bg-slate-100 text-slate-500'
-                }`}>
-                  {cmd.icon}
-                </div>
-                <span className={`flex-1 text-left text-sm font-medium ${textP}`}>
-                  {cmd.label}
-                </span>
-                {cmd.shortcut && (
-                  <kbd className={`px-2 py-1 rounded text-xs font-mono ${inputBg} ${textM} border ${border}`}>
-                    {cmd.shortcut}
-                  </kbd>
-                )}
-              </button>
-            ))
+            filteredCommands.map((cmd, index) => {
+              const isActive = index === selectedIndex;
+              return (
+                <button
+                  key={cmd.id}
+                  id={`${listId}-${index}`}
+                  data-index={index}
+                  role="option"
+                  aria-selected={isActive}
+                  tabIndex={-1}
+                  onClick={() => {
+                    cmd.action();
+                    onClose();
+                  }}
+                  onMouseMove={() => { if (!isActive) setSelectedIndex(index); }}
+                  className={`relative w-full h-9 flex items-center gap-3 px-3 rounded-ctl text-left outline-none ${
+                    isActive ? 'bg-white/5 text-fg' : 'text-fg-secondary'
+                  }`}
+                >
+                  {isActive && (
+                    <span className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-accent" aria-hidden />
+                  )}
+                  <span className={`shrink-0 flex items-center justify-center w-4 h-4 [&>svg]:w-4 [&>svg]:h-4 ${
+                    isActive ? 'text-fg' : 'text-fg-secondary'
+                  }`}>
+                    {cmd.icon}
+                  </span>
+                  <span className="flex-1 truncate text-[13px]">
+                    {cmd.label}
+                  </span>
+                  {cmd.shortcut && (
+                    <span className="shrink-0 text-[11px] text-fg-muted tracking-wide">
+                      {cmd.shortcut}
+                    </span>
+                  )}
+                </button>
+              );
+            })
           )}
         </div>
 
         {/* Footer */}
-        <div className={`flex items-center justify-between px-4 py-2 border-t ${border} ${textM} text-xs relative z-10`}>
-          <div className="flex items-center gap-4">
-            <span className="flex items-center gap-1">
-              <kbd className={`px-1.5 py-0.5 rounded font-mono ${inputBg} border ${border}`}>↑</kbd>
-              <kbd className={`px-1.5 py-0.5 rounded font-mono ${inputBg} border ${border}`}>↓</kbd>
-              Navigate
-            </span>
-            <span className="flex items-center gap-1">
-              <kbd className={`px-1.5 py-0.5 rounded font-mono ${inputBg} border ${border}`}>↵</kbd>
-              Select
-            </span>
-          </div>
-          <span className="flex items-center gap-1">
-            <Command size={12} />
-            <span>+</span>
-            <kbd className={`px-1.5 py-0.5 rounded font-mono ${inputBg} border ${border}`}>K</kbd>
+        <div className="flex items-center gap-4 h-8 px-4 border-t border-line text-[11px] text-fg-muted">
+          <span className="flex items-center gap-1.5">
+            <Kbd>↑</Kbd><Kbd>↓</Kbd> Navigate
+          </span>
+          <span className="flex items-center gap-1.5">
+            <Kbd>↵</Kbd> Select
+          </span>
+          <span className="ml-auto flex items-center gap-1.5">
+            <Kbd>Ctrl</Kbd><Kbd>K</Kbd>
           </span>
         </div>
       </div>

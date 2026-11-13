@@ -3,8 +3,7 @@
  * Provides contextual help without cluttering the UI.
  */
 
-import React, { useState, useRef, useEffect } from 'react';
-import { useTheme } from '../hooks/useTheme';
+import React, { useState, useRef, useEffect, useId } from 'react';
 
 interface TooltipProps {
   content: string;
@@ -14,6 +13,8 @@ interface TooltipProps {
   disabled?: boolean;
 }
 
+const OFFSET = 6;
+
 export const Tooltip: React.FC<TooltipProps> = ({
   content,
   children,
@@ -21,37 +22,37 @@ export const Tooltip: React.FC<TooltipProps> = ({
   delay = 500,
   disabled = false,
 }) => {
-  const { isDark } = useTheme();
   const [isVisible, setIsVisible] = useState(false);
   const [coords, setCoords] = useState({ x: 0, y: 0 });
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
+  const tooltipId = useId();
 
   const showTooltip = () => {
     if (disabled) return;
-    
+
     timeoutRef.current = setTimeout(() => {
       if (triggerRef.current) {
         const rect = triggerRef.current.getBoundingClientRect();
-        
+
         let x = 0;
         let y = 0;
 
         switch (position) {
           case 'top':
             x = rect.left + rect.width / 2;
-            y = rect.top - 8;
+            y = rect.top - OFFSET;
             break;
           case 'bottom':
             x = rect.left + rect.width / 2;
-            y = rect.bottom + 8;
+            y = rect.bottom + OFFSET;
             break;
           case 'left':
-            x = rect.left - 8;
+            x = rect.left - OFFSET;
             y = rect.top + rect.height / 2;
             break;
           case 'right':
-            x = rect.right + 8;
+            x = rect.right + OFFSET;
             y = rect.top + rect.height / 2;
             break;
         }
@@ -92,6 +93,7 @@ export const Tooltip: React.FC<TooltipProps> = ({
         onMouseLeave={hideTooltip}
         onFocus={showTooltip}
         onBlur={hideTooltip}
+        aria-describedby={isVisible ? tooltipId : undefined}
         className="inline-block"
       >
         {children}
@@ -99,28 +101,16 @@ export const Tooltip: React.FC<TooltipProps> = ({
 
       {isVisible && (
         <div
-          className={`fixed z-[300] px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap pointer-events-none transition-opacity duration-200 ${
-            isDark
-              ? 'bg-slate-800 text-white border border-slate-700'
-              : 'bg-slate-900 text-white'
-          } ${positionClasses[position]} shadow-lg`}
+          id={tooltipId}
+          role="tooltip"
+          className={`fixed z-[300] px-2 py-1 rounded-ctl border border-line bg-bg-elevated text-fg font-sans text-[11px] font-medium leading-4 whitespace-nowrap pointer-events-none shadow-subtle animate-fade-in ${positionClasses[position]}`}
           style={{
             left: `${coords.x}px`,
             top: `${coords.y}px`,
+            animationDuration: '120ms',
           }}
         >
           {content}
-          {/* Arrow */}
-          <div
-            className={`absolute w-2 h-2 rotate-45 ${
-              isDark ? 'bg-slate-800 border-slate-700' : 'bg-slate-900'
-            } ${
-              position === 'top' ? 'bottom-[-4px] left-1/2 -translate-x-1/2 border-r border-b' :
-              position === 'bottom' ? 'top-[-4px] left-1/2 -translate-x-1/2 border-l border-t' :
-              position === 'left' ? 'right-[-4px] top-1/2 -translate-y-1/2 border-t border-r' :
-              'left-[-4px] top-1/2 -translate-y-1/2 border-b border-l'
-            }`}
-          />
         </div>
       )}
     </>
