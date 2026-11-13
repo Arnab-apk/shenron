@@ -6,10 +6,9 @@
  */
 
 import React, { useState } from 'react';
-import { useTheme } from '../hooks/useTheme';
 import { useMountTransition } from '../hooks/useMountTransition';
 import {
-  Users, Wifi, WifiOff, Loader2, Copy, Check, LogOut,
+  Users, WifiOff, Loader2, Copy, Check, LogOut,
   UserCheck, UserX, Clock, Crown, X,
 } from 'lucide-react';
 import { CollabMember, PendingRequest, CollabStatus } from '../services/collabService';
@@ -32,7 +31,6 @@ export const CollabBar: React.FC<Props> = ({
   roomId, status, isHost, members, pending,
   onApprove, onReject, onLeave,
 }) => {
-  const { isDark } = useTheme();
   const [copied, setCopied] = useState(false);
   const [showPanel, setShowPanel] = useState(false);
   const { hasRendered, isActive } = useMountTransition(showPanel, 300);
@@ -45,161 +43,153 @@ export const CollabBar: React.FC<Props> = ({
 
   const statusIcon = () => {
     switch (status) {
-      case 'connected': return <Wifi size={15} className="text-green-400" />;
+      case 'connected': return <span className="w-1.5 h-1.5 rounded-full bg-success" aria-hidden="true" />;
       case 'connecting':
-      case 'waiting-approval': return <Loader2 size={15} className="animate-spin text-yellow-400" />;
-      default: return <WifiOff size={15} className="text-red-400" />;
+      case 'waiting-approval': return <Loader2 size={12} className="animate-spin text-fg-secondary" />;
+      default: return <WifiOff size={12} className="text-danger" />;
     }
   };
 
   const statusLabel = () => {
     switch (status) {
-      case 'connected': return 'CONNECTED';
-      case 'connecting': return 'CONNECTING...';
-      case 'waiting-approval': return 'WAITING FOR APPROVAL...';
-      case 'rejected': return 'REJECTED';
-      case 'error': return 'ERROR';
-      default: return 'DISCONNECTED';
+      case 'connected': return 'Connected';
+      case 'connecting': return 'Connecting…';
+      case 'waiting-approval': return 'Waiting for approval…';
+      case 'rejected': return 'Rejected';
+      case 'error': return 'Error';
+      default: return 'Disconnected';
     }
   };
 
-  const bg = isDark ? 'bg-[#12121c]' : 'bg-[#d0d4dc]';
-  const panelBg = isDark ? 'bg-[#1a1a2e]' : 'bg-white';
-  const border = isDark ? 'border-slate-700/50' : 'border-slate-200';
-  const textP = isDark ? 'text-white' : 'text-slate-900';
-  const textM = isDark ? 'text-slate-400' : 'text-slate-500';
+  const iconBtn = 'inline-flex items-center justify-center w-6 h-6 rounded-ctl transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-accent';
 
   return (
-    <>
-      {/* ── Collab status bar ─────────────────────────────────────────── */}
-      <div className={`h-11 flex items-center justify-between px-4 text-[13px] kode-font font-bold ${bg} ${isDark ? 'text-white/80' : 'text-slate-600'} border-t ${border} relative`}>
-        <div className="flex items-center gap-3">
-          {/* Status with live indicator */}
-          <div className="flex items-center gap-2">
+    <div className="relative shrink-0 font-sans">
+      {/* ── Collab room bar ───────────────────────────────────────────── */}
+      <div className="h-7 flex items-center justify-between px-2 bg-bg-panel border-t border-line text-[11px] text-fg-secondary">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-1.5">
             {statusIcon()}
             <span>{statusLabel()}</span>
-            {status === 'connected' && (
-              <div className="flex items-center gap-1 ml-1">
-                <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                <span className="text-[10px] text-green-400 font-normal">LIVE</span>
-              </div>
-            )}
           </div>
 
-          {/* Room ID */}
-          <button onClick={handleCopy} className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#CAA4F7]/15 text-[#CAA4F7] hover:bg-[#CAA4F7]/25 transition-colors" title="Copy Room ID">
-            <span className="tracking-widest">{roomId}</span>
-            {copied ? <Check size={13} /> : <Copy size={13} />}
+          <span className="w-px h-3 bg-line" aria-hidden="true" />
+
+          {/* Room ID (innerText must stay the bare room id) */}
+          <button onClick={handleCopy}
+            className="flex items-center gap-1.5 h-5 px-1.5 rounded-ctl font-mono tracking-wider text-fg hover:bg-white/5 transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+            title="Copy Room ID">
+            <span>{roomId}</span>
+            {copied ? <Check size={12} className="text-success" /> : <Copy size={12} className="text-fg-muted" />}
           </button>
 
-          {isHost && <Crown size={15} className="text-amber-400" />}
+          {isHost && (
+            <span className="flex items-center gap-1 text-fg-muted">
+              <Crown size={12} /> Host
+            </span>
+          )}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1">
           {/* Member avatars */}
           <button
             onClick={() => setShowPanel(!showPanel)}
-            className="flex items-center gap-1.5 hover:opacity-80 transition-opacity relative"
+            aria-expanded={showPanel}
+            className="relative flex items-center gap-1.5 h-6 px-1.5 rounded-ctl hover:bg-white/5 transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-accent"
           >
-            <div className="flex -space-x-1.5">
+            <div className="flex -space-x-1">
               {members.slice(0, 5).map(m => (
                 <div
                   key={m.peerId}
-                  className="w-6 h-6 rounded-full border-2 flex items-center justify-center text-[9px] font-bold text-white"
-                  style={{ backgroundColor: m.color, borderColor: isDark ? '#12121c' : '#d0d4dc' }}
+                  className="w-4 h-4 rounded-full ring-1 ring-[#111118] flex items-center justify-center text-[9px] font-semibold text-[#0A0A0F]"
+                  style={{ backgroundColor: m.color }}
                   title={m.displayName}
                 >
                   {m.displayName[0]?.toUpperCase()}
                 </div>
               ))}
               {members.length > 5 && (
-                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-[9px] font-bold ${isDark ? 'bg-slate-700 border-[#12121c] text-slate-300' : 'bg-slate-200 border-[#d0d4dc] text-slate-600'}`}>
+                <div className="w-4 h-4 rounded-full ring-1 ring-[#111118] bg-bg-elevated flex items-center justify-center text-[9px] text-fg-secondary">
                   +{members.length - 5}
                 </div>
               )}
             </div>
-            <Users size={15} />
+            <Users size={12} />
             <span>{members.length}</span>
 
-            {/* Pending badge */}
             {isHost && pending.length > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center animate-pulse">
+              <span className="ml-0.5 min-w-[16px] h-4 px-1 rounded-full bg-accent text-[#0A0A0F] text-[10px] leading-4 font-semibold text-center">
                 {pending.length}
               </span>
             )}
           </button>
 
-          {/* Leave button */}
           <button
             onClick={onLeave}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors text-[12px] font-bold"
+            className="flex items-center gap-1 h-6 px-2 rounded-ctl text-fg-secondary hover:text-danger hover:bg-white/5 transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-accent"
           >
-            <LogOut size={13} /> LEAVE
+            <LogOut size={12} /> Leave
           </button>
         </div>
       </div>
 
-      {/* ── Members/Pending panel ─────────────────────────────────────── */}
+      {/* ── Members / pending popover ─────────────────────────────────── */}
       {hasRendered && (
         <>
-          <div className={`fixed inset-0 z-40 transition-opacity duration-300 ease-out ${isActive ? 'opacity-100' : 'opacity-0'}`} onClick={() => setShowPanel(false)} />
-          <div className={`absolute bottom-14 right-4 z-50 w-72 rounded-xl ${panelBg} border ${border} shadow-2xl overflow-hidden transition-all duration-300 ease-out transform origin-bottom-right ${isActive ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-4'}`}>
-            <div className={`px-4 py-3 border-b ${border} flex items-center justify-between`}>
-              <h3 className={`text-sm font-bold ${textP}`}>Room Members</h3>
-              <button onClick={() => setShowPanel(false)} className={`p-1 rounded hover:${isDark ? 'bg-slate-700' : 'bg-slate-100'}`}>
-                <X size={14} className={textM} />
+          <div className={`fixed inset-0 z-40 transition-opacity duration-150 ${isActive ? 'opacity-100' : 'opacity-0'}`} onClick={() => setShowPanel(false)} />
+          <div className={`absolute bottom-full right-2 mb-1 z-50 w-72 rounded-panel bg-bg-elevated border border-line shadow-subtle overflow-hidden transition-all duration-150 ease-out origin-bottom-right ${isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1'}`}>
+            <div className="flex items-center justify-between h-9 pl-3 pr-1.5 border-b border-line">
+              <h3 className="text-[11px] font-medium uppercase tracking-wide text-fg-muted">Room members</h3>
+              <button onClick={() => setShowPanel(false)} aria-label="Close members panel" className={`${iconBtn} text-fg-secondary hover:text-fg hover:bg-white/5`}>
+                <X size={14} />
               </button>
             </div>
 
-            <div className="max-h-60 overflow-y-auto custom-scrollbar">
-              {/* Approved members */}
+            <div className="max-h-60 overflow-y-auto custom-scrollbar py-1">
               {members.map(m => (
-                <div key={m.peerId} className={`flex items-center gap-3 px-4 py-2.5 ${isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'}`}>
+                <div key={m.peerId} className="flex items-center gap-2.5 px-3 h-8 hover:bg-white/[0.03]">
                   <div
-                    className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
+                    className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold text-[#0A0A0F] shrink-0"
                     style={{ backgroundColor: m.color }}
                   >
                     {m.displayName[0]?.toUpperCase()}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className={`text-xs font-bold truncate ${textP}`}>
-                      {m.displayName}
-                      {m.isHost && <Crown size={10} className="inline ml-1 text-amber-400" />}
-                    </div>
+                  <div className="flex-1 min-w-0 flex items-center gap-1 text-[12px] text-fg truncate">
+                    {m.displayName}
+                    {m.isHost && <Crown size={11} className="shrink-0 text-fg-muted" />}
                   </div>
-                  <Wifi size={10} className="text-green-400 shrink-0" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-success shrink-0" aria-label="Online" />
                 </div>
               ))}
 
-              {/* Pending requests (host only) */}
               {isHost && pending.length > 0 && (
                 <>
-                  <div className={`px-4 py-2 text-[10px] font-bold uppercase tracking-wider ${textM} border-t ${border}`}>
-                    <Clock size={10} className="inline mr-1" /> Pending Requests
+                  <div className="flex items-center gap-1 px-3 pt-2 pb-1 mt-1 border-t border-line text-[11px] font-medium uppercase tracking-wide text-fg-muted">
+                    <Clock size={11} /> Pending requests
                   </div>
                   {pending.map(p => (
-                    <div key={p.peerId} className={`flex items-center gap-3 px-4 py-2.5 ${isDark ? 'bg-amber-500/5' : 'bg-amber-50'}`}>
+                    <div key={p.peerId} className="flex items-center gap-2.5 px-3 h-9">
                       <div
-                        className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
+                        className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold text-[#0A0A0F] shrink-0"
                         style={{ backgroundColor: p.color }}
                       >
                         {p.displayName[0]?.toUpperCase()}
                       </div>
-                      <span className={`flex-1 text-xs font-medium truncate ${textP}`}>{p.displayName}</span>
-                      <div className="flex gap-1 shrink-0">
+                      <span className="flex-1 text-[12px] text-fg truncate">{p.displayName}</span>
+                      <div className="flex gap-0.5 shrink-0">
                         <button
                           onClick={() => onApprove(p.peerId)}
-                          className="p-1.5 rounded-md bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-colors"
+                          className={`${iconBtn} text-success hover:bg-white/5`}
                           title="Approve"
                         >
-                          <UserCheck size={12} />
+                          <UserCheck size={14} />
                         </button>
                         <button
                           onClick={() => onReject(p.peerId)}
-                          className="p-1.5 rounded-md bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
+                          className={`${iconBtn} text-danger hover:bg-white/5`}
                           title="Reject"
                         >
-                          <UserX size={12} />
+                          <UserX size={14} />
                         </button>
                       </div>
                     </div>
@@ -210,6 +200,6 @@ export const CollabBar: React.FC<Props> = ({
           </div>
         </>
       )}
-    </>
+    </div>
   );
 };

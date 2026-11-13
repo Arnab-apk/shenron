@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useTheme } from '../hooks/useTheme';
 import {
-  X, Github, Link2, Loader2, ArrowLeft, Download,
+  Github, Link2, Loader2, ArrowLeft, Download,
   FolderOpen, FileCode, Lock, Globe, ChevronRight, LogOut, AlertCircle, Check, Search
 } from 'lucide-react';
 import {
@@ -10,10 +9,8 @@ import {
   fetchFileContent, fetchFromPublicUrl, parseGitHubUrl, fetchRepoTree,
   GitHubUser, GitHubRepo, GitHubContent, RepoTreeItem
 } from '../services/githubService';
-import { useMountTransition } from '../hooks/useMountTransition';
 import { detectLanguageAI } from '../utils/detectLanguage';
-import BorderGlow from './BorderGlow';
-import DotField from './DotField';
+import { ModalSurface, modalStyles as ms } from './ModalSurface';
 
 type Tab = 'url' | 'connect';
 type BrowseView = 'auth' | 'repos' | 'files';
@@ -25,8 +22,10 @@ interface Props {
   onImportRepo?: (repo: GitHubRepo, tree: RepoTreeItem[]) => void;
 }
 
+const rowBtn =
+  'group flex w-full items-center justify-between gap-2 rounded-ctl px-2 py-1.5 text-left transition-colors hover:bg-white/5 disabled:opacity-60';
+
 export const GitHubImportModal: React.FC<Props> = ({ isOpen, onClose, onImport, onImportRepo }) => {
-  const { isDark } = useTheme();
   const [tab, setTab] = useState<Tab>('url');
 
   // URL tab state
@@ -182,6 +181,21 @@ export const GitHubImportModal: React.FC<Props> = ({ isOpen, onClose, onImport, 
     }
   };
 
+  const handleImportRepo = async () => {
+    const t = getStoredToken();
+    if (!t || !selectedRepo || !onImportRepo) return;
+    setImportingRepo(true);
+    try {
+      const data = await fetchRepoTree(t, selectedRepo.owner.login, selectedRepo.name, selectedRepo.default_branch);
+      onImportRepo(selectedRepo, data.tree);
+      onClose();
+    } catch (e: any) {
+      setFilesError(e.message);
+    } finally {
+      setImportingRepo(false);
+    }
+  };
+
   const handleUrlImport = async () => {
     if (!url.trim()) return;
     if (!parseGitHubUrl(url.trim())) {
@@ -214,306 +228,267 @@ export const GitHubImportModal: React.FC<Props> = ({ isOpen, onClose, onImport, 
     onClose();
   }, [onClose]);
 
-  const { hasRendered, isActive } = useMountTransition(isOpen, 300);
+  const tabs = (
+    <div className="flex px-1">
+      {([['url', Link2, 'Paste URL'] as const, ['connect', Github, 'Connect GitHub'] as const]).map(([key, Icon, label]) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => setTab(key)}
+          aria-pressed={tab === key}
+          className={ms.tab(tab === key)}
+        >
+          <Icon size={14} />
+          {label}
+        </button>
+      ))}
+    </div>
+  );
 
-  if (!hasRendered) return null;
+  const footer = (
+    <>
+      <button type="button" onClick={resetAndClose} className={ms.btnSecondary}>
+        Cancel
+      </button>
+      {tab === 'url' && (
+        <button type="button" onClick={handleUrlImport} disabled={urlLoading || !url.trim()} className={ms.btnPrimary}>
+          {urlLoading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+          {urlLoading ? 'Importing...' : 'Import File'}
+        </button>
+      )}
+    </>
+  );
 
-  // Style tokens
-  const bg = isDark ? 'bg-[#1a1a2e]' : 'bg-white';
-  const border = isDark ? 'border-slate-700/50' : 'border-slate-200';
-  const text = isDark ? 'text-slate-200' : 'text-slate-800';
-  const textMuted = isDark ? 'text-slate-400' : 'text-slate-500';
-  const inputBg = isDark ? 'bg-[#232340] border-slate-600/50 text-white placeholder:text-slate-500' : 'bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400';
-  const hoverBg = isDark ? 'hover:bg-[#2a2a45]' : 'hover:bg-slate-50';
+  const spinner = (
+    <div className="flex items-center justify-center py-12">
+      <Loader2 size={18} className="animate-spin text-fg-secondary" />
+    </div>
+  );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={resetAndClose}>
-      <div className={`absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ease-out ${isActive ? 'opacity-100' : 'opacity-0'}`} />
-      <BorderGlow
-        backgroundColor={isDark ? '#1a1a2e' : '#ffffff'}
-        colors={['#CAA4F7', '#9B6DD7', '#38bdf8']}
-        borderRadius={16}
-        glowRadius={50}
-        glowIntensity={1.2}
-        glowColor="280 60 85"
-        animated={isActive}
-        fillOpacity={0.3}
-        className={`w-[640px] max-h-[85vh] transition-all duration-300 ease-out transform ${isActive ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-4 scale-95 opacity-0'}`}
-      >
-        <div className={`${bg} rounded-2xl flex flex-col overflow-hidden h-full relative`}
-          onClick={e => e.stopPropagation()}>
-
-        {/* DotField Background */}
-        <div className="absolute inset-0 z-0 opacity-35 pointer-events-none">
-          <DotField
-            dotRadius={1.5}
-            dotSpacing={16}
-            bulgeStrength={70}
-            glowRadius={160}
-            sparkle={true}
-            waveAmplitude={0}
-            gradientFrom={isDark ? 'rgba(202, 164, 247, 0.30)' : 'rgba(136, 57, 239, 0.25)'}
-            gradientTo={isDark ? 'rgba(139, 92, 246, 0.18)' : 'rgba(168, 85, 247, 0.18)'}
-            glowColor={isDark ? '#1a1a2e' : '#ffffff'}
-          />
-        </div>
-
-        {/* Header */}
-        <div className={`flex items-center justify-between px-6 py-4 border-b ${border} relative z-10`}>
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center shadow-lg">
-              <Github size={18} className="text-white" />
+    <ModalSurface
+      isOpen={isOpen}
+      onClose={resetAndClose}
+      title="Import from GitHub"
+      subtitle="Paste a link or browse your repositories."
+      icon={<Github size={16} />}
+      toolbar={tabs}
+      footer={footer}
+      width={560}
+      bodyClassName="h-[420px] p-0"
+    >
+      {/* ── URL Tab ────────────────────────────────── */}
+      {tab === 'url' && (
+        <div className="space-y-3 p-3">
+          <div>
+            <label htmlFor="gh-import-url" className={ms.label}>File URL</label>
+            <input
+              id="gh-import-url"
+              type="url"
+              value={url}
+              onChange={e => { setUrl(e.target.value); setUrlError(''); setUrlSuccess(''); }}
+              onKeyDown={e => e.key === 'Enter' && handleUrlImport()}
+              placeholder="https://github.com/owner/repo/blob/main/file.ts"
+              className={`${ms.input} font-mono`}
+              autoFocus
+            />
+            <p className="mt-1.5 text-[12px] text-fg-muted">
+              Paste a public GitHub file link to import it directly into the editor.
+            </p>
+          </div>
+          {urlError && (
+            <div role="alert" className={ms.error}>
+              <AlertCircle size={14} className="mt-px shrink-0" /><span>{urlError}</span>
             </div>
-            <div>
-              <h2 className={`text-lg font-semibold ${text}`}>Import from GitHub</h2>
-              <p className={`text-xs ${textMuted}`}>Paste a link or browse your repos</p>
+          )}
+          {urlSuccess && (
+            <div className={ms.success}>
+              <Check size={14} className="mt-px shrink-0" /><span>{urlSuccess}</span>
+            </div>
+          )}
+          <div className="space-y-1">
+            <span className={ms.label}>Supported formats</span>
+            <code className="block rounded-ctl border border-line bg-bg px-2.5 py-1.5 font-mono text-[11px] text-fg-secondary">
+              github.com/owner/repo/blob/branch/path/file.ext
+            </code>
+            <code className="block rounded-ctl border border-line bg-bg px-2.5 py-1.5 font-mono text-[11px] text-fg-secondary">
+              raw.githubusercontent.com/owner/repo/branch/path/file.ext
+            </code>
+          </div>
+        </div>
+      )}
+
+      {/* ── Connect Tab (OAuth) ─────────────────── */}
+      {tab === 'connect' && browseView === 'auth' && (
+        <div className="flex h-full flex-col items-center justify-center px-8 text-center">
+          <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-panel border border-line bg-bg-elevated">
+            <Github size={18} className="text-fg-secondary" />
+          </div>
+          <h3 className="text-[13px] font-semibold text-fg">Connect your GitHub account</h3>
+          <p className="mt-1 max-w-[340px] text-[12px] text-fg-muted">
+            Sign in with GitHub to browse and import files from all your repositories — including private ones.
+          </p>
+          {/* Auth error — slides in above the button */}
+          <div
+            className="w-full max-w-[340px] overflow-hidden transition-all duration-300 ease-out"
+            style={{ maxHeight: authError ? '72px' : '0px', opacity: authError ? 1 : 0 }}
+          >
+            <div role={authError ? 'alert' : undefined} className={`${ms.error} mt-3 text-left`}>
+              <AlertCircle size={14} className="mt-px shrink-0" />
+              <span className="leading-snug">{authError}</span>
             </div>
           </div>
-          <button onClick={resetAndClose} className={`p-2 rounded-lg ${hoverBg} transition-colors ${textMuted}`}>
-            <X size={18} />
+          <button
+            type="button"
+            onClick={handleConnect}
+            disabled={authLoading}
+            key={authError ? `err-${authError}` : 'idle'}
+            className={`${ms.btnPrimary} mt-4 ${authError ? 'animate-shake' : ''}`}
+          >
+            {authLoading ? (
+              <><Loader2 size={14} className="animate-spin" /> Authenticating…</>
+            ) : (
+              <><Github size={14} /> Sign in with GitHub</>
+            )}
           </button>
         </div>
+      )}
 
-        {/* Tabs */}
-        <div className={`flex border-b ${border} px-6 relative z-10`}>
-          {([['url', Link2, 'Paste URL'] as const, ['connect', Github, 'Connect GitHub'] as const]).map(([key, Icon, label]) => (
-            <button key={key} onClick={() => setTab(key)}
-              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${tab === key
-                ? 'border-purple-500 text-purple-400'
-                : `border-transparent ${textMuted} hover:text-purple-400`}`}>
-              <Icon size={15} />
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar relative z-10">
-
-          {/* ── Grid Container for URL and Auth to sync height ── */}
-          {(tab === 'url' || (tab === 'connect' && browseView === 'auth')) && (
-            <div className="grid">
-              
-              {/* ── URL Tab ────────────────────────────────── */}
-              <div className={`col-start-1 row-start-1 p-6 space-y-4 transition-opacity duration-200 ${tab === 'url' ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none z-0'}`}>
-                <p className={`text-sm ${textMuted}`}>
-                  Paste a public GitHub file link to import it directly into the editor.
-                </p>
-                <div className="space-y-3">
-                  <input
-                    type="url"
-                    value={url}
-                    onChange={e => { setUrl(e.target.value); setUrlError(''); setUrlSuccess(''); }}
-                    onKeyDown={e => e.key === 'Enter' && handleUrlImport()}
-                    placeholder="https://github.com/owner/repo/blob/main/file.ts"
-                    className={`w-full px-4 py-3 rounded-xl border text-sm font-mono ${inputBg} focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all`}
-                    autoFocus={tab === 'url'}
-                  />
-                  {urlError && (
-                    <div className="flex items-start gap-2 text-red-400 text-xs bg-red-500/10 rounded-lg px-3 py-2">
-                      <AlertCircle size={14} className="mt-0.5 shrink-0" /><span>{urlError}</span>
-                    </div>
-                  )}
-                  {urlSuccess && (
-                    <div className="flex items-center gap-2 text-emerald-400 text-xs bg-emerald-500/10 rounded-lg px-3 py-2">
-                      <Check size={14} /><span>{urlSuccess}</span>
-                    </div>
-                  )}
-                  <button onClick={handleUrlImport} disabled={urlLoading || !url.trim()}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white rounded-xl text-sm font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-purple-500/20">
-                    {urlLoading ? <Loader2 size={16} className="animate-spin" /> : <Github size={16} />}
-                    {urlLoading ? 'Importing...' : 'Import File'}
-                  </button>
-                </div>
-                <div className={`text-xs ${textMuted} space-y-1 pt-2`}>
-                  <p className="font-medium">Supported URL formats:</p>
-                  <code className={`block px-3 py-1.5 rounded-lg ${isDark ? 'bg-[#232340]' : 'bg-slate-100'} text-[11px]`}>
-                    github.com/owner/repo/blob/branch/path/file.ext
-                  </code>
-                  <code className={`block px-3 py-1.5 rounded-lg ${isDark ? 'bg-[#232340]' : 'bg-slate-100'} text-[11px]`}>
-                    raw.githubusercontent.com/owner/repo/branch/path/file.ext
-                  </code>
-                </div>
+      {/* ── Repos View ────────────────────────────── */}
+      {tab === 'connect' && browseView === 'repos' && (
+        <div className="flex h-full flex-col">
+          {/* User bar */}
+          {user && (
+            <div className="flex shrink-0 items-center justify-between border-b border-line px-3 py-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <img src={user.avatar_url} alt="" className="h-5 w-5 rounded-full border border-line" />
+                <span className="truncate text-[12px] font-medium text-fg">{user.name || user.login}</span>
+                <span className="truncate text-[12px] text-fg-muted">@{user.login}</span>
               </div>
-
-              {/* ── Connect Tab (OAuth) ─────────────────── */}
-              <div className={`col-start-1 row-start-1 p-6 space-y-5 transition-opacity duration-200 ${tab === 'connect' ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none z-0'}`}>
-                <div className="text-center py-4">
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-purple-500/20 to-blue-600/20 flex items-center justify-center">
-                    <Github size={32} className={isDark ? 'text-white' : 'text-slate-800'} />
-                  </div>
-                  <h3 className={`text-base font-semibold mb-1 ${text}`}>Connect your GitHub account</h3>
-                  <p className={`text-sm ${textMuted}`}>
-                    Sign in with GitHub to browse and import files from all your repositories — including private ones.
-                  </p>
-                </div>
-                {/* Auth error toast — slides in above the button without growing the modal */}
-                <div
-                  className="overflow-hidden transition-all duration-300 ease-out"
-                  style={{ maxHeight: authError ? '60px' : '0px', opacity: authError ? 1 : 0 }}
-                >
-                  <div className="flex items-center gap-2 text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2.5 mb-1">
-                    <AlertCircle size={14} className="shrink-0 animate-[pulse_1.5s_ease-in-out_3]" />
-                    <span className="leading-snug">{authError}</span>
-                  </div>
-                </div>
-                <button onClick={handleConnect} disabled={authLoading}
-                  key={authError ? `err-${authError}` : 'idle'}
-                  className={`w-full flex items-center justify-center gap-2.5 px-4 py-3.5 bg-gradient-to-r from-[#24292f] to-[#1b1f23] hover:from-[#32383f] hover:to-[#24292f] text-white rounded-xl text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-black/20 border border-white/10 ${authError ? 'animate-shake' : ''}`}>
-                  {authLoading ? (
-                    <><Loader2 size={18} className="animate-spin" /> Authenticating…</>
-                  ) : (
-                    <><Github size={18} /> Sign in with GitHub</>
-                  )}
-                </button>
-              </div>
+              <button type="button" onClick={handleDisconnect} className={`${ms.btnGhost} hover:text-danger`}>
+                <LogOut size={13} /> Disconnect
+              </button>
             </div>
           )}
+          {/* Search */}
+          <div className="shrink-0 px-3 py-2">
+            <div className="relative">
+              <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-muted" />
+              <input
+                value={repoSearch}
+                onChange={e => setRepoSearch(e.target.value)}
+                placeholder="Search repositories..."
+                aria-label="Search repositories"
+                className={`${ms.input} pl-8`}
+              />
+            </div>
+          </div>
+          {/* List */}
+          <div className="min-h-0 flex-1 space-y-px overflow-y-auto px-2 pb-2 custom-scrollbar">
+            {reposLoading ? spinner : filteredRepos.length === 0 ? (
+              <div className="py-12 text-center text-[12px] text-fg-muted">No repositories found.</div>
+            ) : (
+              filteredRepos.map(repo => (
+                <button key={repo.id} type="button" onClick={() => handleSelectRepo(repo)} className={rowBtn}>
+                  <div className="flex min-w-0 items-center gap-2">
+                    {repo.private
+                      ? <Lock size={14} className="shrink-0 text-fg-secondary" />
+                      : <Globe size={14} className="shrink-0 text-fg-muted" />}
+                    <div className="min-w-0">
+                      <div className="truncate text-[13px] text-fg">{repo.name}</div>
+                      {repo.description && <div className="truncate text-[11px] text-fg-muted">{repo.description}</div>}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {repo.language && (
+                      <span className="rounded border border-line px-1.5 py-px text-[11px] text-fg-secondary">
+                        {repo.language}
+                      </span>
+                    )}
+                    <ChevronRight size={14} className="text-fg-muted transition-colors group-hover:text-fg" />
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
-          {/* ── Repos View ────────────────────────────── */}
-          {tab === 'connect' && browseView === 'repos' && (
-            <div className="flex flex-col h-full">
-              {/* User bar */}
-              {user && (
-                <div className={`flex items-center justify-between px-6 py-3 border-b ${border}`}>
-                  <div className="flex items-center gap-3">
-                    <img src={user.avatar_url} alt="" className="w-7 h-7 rounded-full ring-2 ring-purple-500/30" />
-                    <span className={`text-sm font-medium ${text}`}>{user.name || user.login}</span>
-                    <span className={`text-xs ${textMuted}`}>@{user.login}</span>
-                  </div>
-                  <button onClick={handleDisconnect} className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 transition-colors">
-                    <LogOut size={13} /> Disconnect
-                  </button>
-                </div>
-              )}
-              {/* Search */}
-              <div className="px-6 py-3">
-                <div className="relative">
-                  <Search size={15} className={`absolute left-3 top-1/2 -translate-y-1/2 ${textMuted}`} />
-                  <input value={repoSearch} onChange={e => setRepoSearch(e.target.value)}
-                    placeholder="Search repositories..."
-                    className={`w-full pl-9 pr-4 py-2.5 rounded-xl border text-sm ${inputBg} focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all`} />
-                </div>
-              </div>
-              {/* List */}
-              <div className="flex-1 overflow-y-auto custom-scrollbar px-4 pb-4 space-y-1">
-                {reposLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 size={24} className="animate-spin text-purple-400" />
-                  </div>
-                ) : filteredRepos.length === 0 ? (
-                  <div className={`text-center py-12 ${textMuted} text-sm`}>No repositories found.</div>
-                ) : (
-                  filteredRepos.map(repo => (
-                    <button key={repo.id} onClick={() => handleSelectRepo(repo)}
-                      className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-colors ${hoverBg} group`}>
-                      <div className="flex items-center gap-3 truncate">
-                        {repo.private ? <Lock size={14} className="text-amber-400 shrink-0" /> : <Globe size={14} className={`${textMuted} shrink-0`} />}
-                        <div className="text-left truncate">
-                          <div className={`text-sm font-medium ${text} truncate`}>{repo.name}</div>
-                          {repo.description && <div className={`text-xs ${textMuted} truncate`}>{repo.description}</div>}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {repo.language && (
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full ${isDark ? 'bg-slate-700 text-slate-300' : 'bg-slate-200 text-slate-600'}`}>
-                            {repo.language}
-                          </span>
-                        )}
-                        <ChevronRight size={14} className={`${textMuted} group-hover:text-purple-400 transition-colors`} />
-                      </div>
-                    </button>
-                  ))
+      {/* ── Files View ────────────────────────────── */}
+      {tab === 'connect' && browseView === 'files' && selectedRepo && (
+        <div className="flex h-full flex-col">
+          {/* Breadcrumb + Import Repo */}
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line px-2 py-1.5">
+            <div className="flex min-w-0 items-center gap-1">
+              <button
+                type="button"
+                onClick={handleGoBack}
+                aria-label="Back"
+                title="Back"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-ctl text-fg-secondary transition-colors hover:bg-white/5 hover:text-fg"
+              >
+                <ArrowLeft size={14} />
+              </button>
+              <div className="flex min-w-0 items-center gap-1 text-[12px]">
+                <span className="shrink-0 font-medium text-fg">{selectedRepo.name}</span>
+                {currentPath && (
+                  <>
+                    <span className="text-fg-muted">/</span>
+                    <span className="truncate font-mono text-[11px] text-fg-secondary">{currentPath}</span>
+                  </>
                 )}
               </div>
             </div>
-          )}
-
-          {/* ── Files View ────────────────────────────── */}
-          {tab === 'connect' && browseView === 'files' && selectedRepo && (
-            <div className="flex flex-col h-full">
-              {/* Breadcrumb + Import Repo */}
-              <div className={`flex items-center justify-between px-6 py-3 border-b ${border}`}>
-                <div className="flex items-center gap-2">
-                  <button onClick={handleGoBack} className={`p-1.5 rounded-lg ${hoverBg} ${textMuted} hover:text-purple-400 transition-colors`}>
-                    <ArrowLeft size={16} />
-                  </button>
-                  <div className="flex items-center gap-1 text-sm truncate">
-                    <span className={`font-medium ${text}`}>{selectedRepo.name}</span>
-                    {currentPath && (
-                      <>
-                        <span className={textMuted}>/</span>
-                        <span className={`${textMuted} truncate`}>{currentPath}</span>
-                      </>
+            {onImportRepo && !currentPath && (
+              <button
+                type="button"
+                onClick={handleImportRepo}
+                disabled={importingRepo}
+                className={`${ms.btnPrimary} h-7 shrink-0`}
+              >
+                {importingRepo ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+                {importingRepo ? 'Importing…' : 'Import Repo'}
+              </button>
+            )}
+          </div>
+          {/* File list */}
+          <div className="min-h-0 flex-1 space-y-px overflow-y-auto px-2 py-1.5 custom-scrollbar">
+            {filesLoading ? spinner : filesError ? (
+              <div role="alert" className={`${ms.error} m-1`}>
+                <AlertCircle size={14} className="mt-px shrink-0" />{filesError}
+              </div>
+            ) : (
+              contents.map(item => (
+                <button
+                  key={item.sha}
+                  type="button"
+                  onClick={() => item.type === 'dir' ? handleNavigateDir(item.path) : handleImportFile(item)}
+                  disabled={importingFile === item.path}
+                  className={rowBtn}
+                >
+                  <div className="flex min-w-0 items-center gap-2">
+                    {item.type === 'dir'
+                      ? <FolderOpen size={14} className="shrink-0 text-fg-secondary" />
+                      : <FileCode size={14} className="shrink-0 text-fg-muted" />}
+                    <span className="truncate text-[13px] text-fg">{item.name}</span>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {importingFile === item.path ? (
+                      <Loader2 size={14} className="animate-spin text-fg-secondary" />
+                    ) : item.type === 'dir' ? (
+                      <ChevronRight size={14} className="text-fg-muted transition-colors group-hover:text-fg" />
+                    ) : (
+                      <span className="text-[11px] text-accent opacity-0 transition-opacity group-hover:opacity-100">
+                        Import
+                      </span>
                     )}
                   </div>
-                </div>
-                {onImportRepo && !currentPath && (
-                  <button
-                    onClick={async () => {
-                      const t = getStoredToken();
-                      if (!t || !selectedRepo) return;
-                      setImportingRepo(true);
-                      try {
-                        const data = await fetchRepoTree(t, selectedRepo.owner.login, selectedRepo.name, selectedRepo.default_branch);
-                        onImportRepo(selectedRepo, data.tree);
-                        onClose();
-                      } catch (e: any) {
-                        setFilesError(e.message);
-                      } finally {
-                        setImportingRepo(false);
-                      }
-                    }}
-                    disabled={importingRepo}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white rounded-lg text-xs font-medium transition-all disabled:opacity-50 shadow-md shrink-0"
-                  >
-                    {importingRepo ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
-                    {importingRepo ? 'Importing…' : 'Import Repo'}
-                  </button>
-                )}
-              </div>
-              {/* File list */}
-              <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-2 space-y-0.5">
-                {filesLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 size={24} className="animate-spin text-purple-400" />
-                  </div>
-                ) : filesError ? (
-                  <div className="flex items-center gap-2 text-red-400 text-xs p-4">
-                    <AlertCircle size={14} />{filesError}
-                  </div>
-                ) : (
-                  contents.map(item => (
-                    <button key={item.sha}
-                      onClick={() => item.type === 'dir' ? handleNavigateDir(item.path) : handleImportFile(item)}
-                      disabled={importingFile === item.path}
-                      className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-colors ${hoverBg} group disabled:opacity-60`}>
-                      <div className="flex items-center gap-3 truncate">
-                        {item.type === 'dir'
-                          ? <FolderOpen size={15} className="text-blue-400 shrink-0" />
-                          : <FileCode size={15} className={`${textMuted} shrink-0`} />}
-                        <span className={`text-sm ${text} truncate`}>{item.name}</span>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {importingFile === item.path ? (
-                          <Loader2 size={14} className="animate-spin text-purple-400" />
-                        ) : item.type === 'dir' ? (
-                          <ChevronRight size={14} className={`${textMuted} group-hover:text-purple-400 transition-colors`} />
-                        ) : (
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity bg-purple-500/20 text-purple-300`}>
-                            Import
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
+                </button>
+              ))
+            )}
+          </div>
         </div>
-        </div>
-      </BorderGlow>
-    </div>
+      )}
+    </ModalSurface>
   );
 };

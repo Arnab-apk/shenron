@@ -6,12 +6,13 @@ import { FileExplorer } from './FileExplorer';
 import { CollabBar } from './CollabBar';
 import { ChatPanel } from './ChatPanel';
 import { HarnessPanel } from './HarnessPanel';
+import { GeminiPanel } from './GeminiPanel';
 import VoiceLobbyPanel from './VoiceLobbyPanel';
 import { CodeRunner } from './CodeRunner';
 import { TerminalPanel } from './TerminalPanel';
 import { WorkspaceBar } from './WorkspaceBar';
 import { WorkspaceController } from '../hooks/useWorkspace';
-import DotField from './DotField';
+import { WorkspaceWelcome } from './WorkspaceWelcome';
 import { StoredFile } from '../services/storageService';
 import { hydrateFiles } from '../services/harnessService';
 import { SharedFileInfo } from '../services/collabService';
@@ -19,8 +20,8 @@ import { VoiceManager } from '../services/voiceManager';
 import { useTheme } from '../hooks/useTheme';
 import { detectLanguage, detectLanguageAI } from '../utils/detectLanguage';
 import {
-  FileCode, Plus, Upload, Code2, FolderOpen, Sun, Moon,
-  Github, Users, X, MessageSquare, PanelRightClose, Menu, Sparkles, Headphones, Play, Terminal,
+  FileCode, Upload, Code2, Sun, Moon, Files, Bot, Command,
+  Github, Users, X, MessageSquare, Menu, Headphones, Play, Terminal,
 } from 'lucide-react';
 import {
   JavaScript, TypeScript, Python, CPlusPlus, C, Java, Go, RustDark, Ruby, PHP,
@@ -42,17 +43,14 @@ function LanguageIcon({ language, size = 16, className = '' }: { language: strin
 }
 
 /* ── Resize handle ─────────────────────────────────────────────────── */
-function ResizeHandle({ isDark }: { isDark: boolean }) {
+function ResizeHandle({ vertical = false }: { vertical?: boolean }) {
   return (
     <Separator
-      className={`group relative flex items-center justify-center w-[5px] cursor-col-resize select-none transition-colors
-        ${isDark ? 'bg-slate-800/60 hover:bg-purple-500/40' : 'bg-slate-300/60 hover:bg-purple-400/40'}`}
-    >
-      <div className={`w-[3px] h-8 rounded-full transition-all duration-150
-        ${isDark ? 'bg-slate-600 group-hover:bg-purple-400 group-active:bg-purple-300' : 'bg-slate-400 group-hover:bg-purple-500 group-active:bg-purple-600'}
-        group-hover:h-12 group-active:h-16`}
-      />
-    </Separator>
+      className={`relative shrink-0 select-none bg-line transition-colors hover:bg-accent data-[separator=active]:bg-accent
+        before:absolute before:content-[''] ${vertical
+          ? 'h-px cursor-row-resize before:inset-x-0 before:-top-1 before:-bottom-1'
+          : 'w-px cursor-col-resize before:inset-y-0 before:-left-1 before:-right-1'}`}
+    />
   );
 }
 
@@ -97,6 +95,10 @@ interface EditorViewProps {
   onOpenCollab: () => void;
   onRepoDelete?: (repoKey: string) => void;
   collab: CollabHook;
+  /** Opens the command palette (activity bar). Optional for backwards compatibility. */
+  onOpenCommandPalette?: () => void;
+  /** Opens the collab modal on its Join tab. Falls back to onOpenCollab. */
+  onJoinCollab?: () => void;
 }
 
 type MobilePane = 'editor' | 'runner' | 'terminal' | 'gemini' | 'chat' | 'voice';
@@ -105,7 +107,9 @@ type MobilePane = 'editor' | 'runner' | 'terminal' | 'gemini' | 'chat' | 'voice'
 export const EditorView: React.FC<EditorViewProps> = ({
   files, activeFileId, loadingFileId, onFileSelect, onFileCreate, onAgentFileCreate, onFileDelete, onFileUpload,
   workspace, onCodeChange, onLanguageChange, onOpenGitHub, onOpenGitHubPush, onOpenCollab, onRepoDelete, collab,
+  onOpenCommandPalette, onJoinCollab,
 }) => {
+  const openJoinCollab = onJoinCollab ?? onOpenCollab;
   const { isDark, toggleTheme } = useTheme();
 
   const [triggerNewFile, setTriggerNewFile] = useState(0);
@@ -217,613 +221,496 @@ export const EditorView: React.FC<EditorViewProps> = ({
     setMobilePane('editor');
   }, [onFileSelect]);
 
-  const bg = isDark ? 'bg-[#1E1E2A]' : 'bg-[#E5E8EE]';
-  const bgEditor = isDark ? 'bg-[#232332]' : 'bg-[#EEF1F5]';
-  const textMuted = isDark ? 'text-slate-400' : 'text-slate-500';
-  const textPrimary = isDark ? 'text-white' : 'text-slate-900';
-  const borderColor = isDark ? 'border-slate-800/50' : 'border-slate-300/50';
+  /* ── Editor tabs (UI-only list of recently opened files) ─────────── */
+  const [openTabIds, setOpenTabIds] = useState<string[]>([]);
+  useEffect(() => {
+    if (!activeFileId) return;
+    setOpenTabIds(prev => (prev.includes(activeFileId) ? prev : [...prev, activeFileId]));
+  }, [activeFileId]);
+  const openTabs = useMemo(() => {
+    const result: Array<{ id: string; name: string; language: string; shared: boolean }> = [];
+    for (const id of openTabIds) {
+      const local = files.find(f => f.id === id);
+      const shared = collab.sharedFiles.find(f => f.id === id);
+      if (local) result.push({ id, name: local.name, language: local.language, shared: sharedFileIds.has(id) });
+      else if (shared) result.push({ id, name: shared.name, language: shared.language, shared: true });
+    }
+    return result;
+  }, [openTabIds, files, collab.sharedFiles, sharedFileIds]);
+  const closeTab = useCallback((id: string) => {
+    const index = openTabs.findIndex(t => t.id === id);
+    const remaining = openTabs.filter(t => t.id !== id);
+    setOpenTabIds(prev => prev.filter(tabId => tabId !== id));
+    if (id === activeFileId && remaining.length) onFileSelect(remaining[Math.max(0, index - 1)].id);
+  }, [openTabs, activeFileId, onFileSelect]);
+
+  const [isExplorerOpen, setIsExplorerOpen] = useState(true);
+
+  const iconBtn = 'inline-flex items-center justify-center w-7 h-7 rounded-ctl text-fg-secondary hover:text-fg hover:bg-white/5 transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-accent disabled:opacity-40 disabled:cursor-not-allowed';
+  const emptyPane = 'h-full flex flex-col items-center justify-center bg-bg text-fg-muted';
+
+  const waitingOverlay = collab.status === 'waiting-approval' && (
+    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#0A0A0F]/95">
+      <Users size={20} className="text-fg-secondary mb-3" />
+      <p className="text-[13px] font-medium text-fg">Waiting for host approval…</p>
+      <p className="text-[12px] mt-1 text-fg-secondary">The room host will accept or reject your request.</p>
+      <button onClick={collab.leaveRoom} className="mt-4 h-7 px-3 rounded-ctl border border-line bg-bg-elevated hover:border-line-hover text-[12px] font-medium text-danger transition-colors">Cancel</button>
+    </div>
+  );
+
+  const renderEditor = (file: StoredFile) => (
+    isActiveFileShared && collab.provider && collab.status === 'connected' ? (
+      <CollabMonacoEditor file={file} theme={isDark ? 'dark' : 'light'} fontSize={fontSize}
+        provider={collab.provider} onChange={(code) => onCodeChange(file.id, code)}
+        onCursorChange={(ln, col) => setCursorPosition({ ln, col })}
+        onSelectionChange={(count) => setSelectionCount(count)} />
+    ) : (
+      <ModernMonacoEditor file={file} theme={isDark ? 'dark' : 'light'} fontSize={fontSize}
+        onChange={(code) => onCodeChange(file.id, code)}
+        onCursorChange={(ln, col) => setCursorPosition({ ln, col })}
+        onSelectionChange={(count) => setSelectionCount(count)} />
+    )
+  );
+
+  const sideBtn = 'inline-flex items-center gap-1 h-6 px-1.5 rounded-ctl text-[11px] text-fg-secondary hover:text-fg hover:bg-white/5 transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-accent';
+
+  /* Agent panel: Harness (default) | Chat (GeminiPanel). Chat mounts on first use, then stays mounted. */
+  const [agentView, setAgentView] = useState<'harness' | 'chat'>('harness');
+  const [chatMounted, setChatMounted] = useState(false);
+  useEffect(() => { if (agentView === 'chat') setChatMounted(true); }, [agentView]);
+
+  const renderHarness = () => (
+    <div className="flex flex-col h-full min-h-0">
+      <div role="tablist" aria-label="Agent view" className="flex items-center gap-0.5 h-9 px-2 shrink-0 border-b border-line bg-bg-panel">
+        {([['harness', 'Harness'], ['chat', 'Chat']] as const).map(([id, label]) => (
+          <button key={id} role="tab" aria-selected={agentView === id} onClick={() => setAgentView(id)}
+            className={`h-6 px-2.5 rounded-ctl text-[12px] font-medium transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-accent ${
+              agentView === id ? 'bg-bg-elevated text-fg border border-line' : 'text-fg-secondary hover:text-fg border border-transparent'
+            }`}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className={agentView === 'harness' ? 'flex flex-col flex-1 min-h-0' : 'hidden'}>
+        <HarnessPanel beginAgent={workspace.beginAgent} provider={collab.provider} sharedFiles={collab.sharedFiles}
+          activeFile={activeFile}
+          allFiles={files}
+          onCodeChange={(fileId, content) => onCodeChange(fileId, content)}
+          onFileCreate={onFileCreate}
+          onAgentFileCreate={onAgentFileCreate || onFileCreate}
+        />
+      </div>
+      {chatMounted && (
+        <div className={agentView === 'chat' ? 'flex flex-col flex-1 min-h-0' : 'hidden'}>
+          <GeminiPanel
+            activeFile={activeFile}
+            allFiles={files}
+            onCodeChange={(fileId, content) => onCodeChange(fileId, content)}
+            onFileCreate={() => onFileCreate()}
+            onAgentFileCreate={onAgentFileCreate || onFileCreate}
+          />
+        </div>
+      )}
+    </div>
+  );
+
+  const explorerList = (onSelect: (id: string) => void) => (
+    <FileExplorer files={files} activeFileId={activeFileId} loadingFileId={loadingFileId}
+      onFileSelect={onSelect} onFileDelete={onFileDelete} onRepoDelete={onRepoDelete}
+      onFileCreate={onFileCreate} triggerNewFile={triggerNewFile}
+      isInRoom={isInRoom} isHost={collab.isHost} sharedFiles={collab.sharedFiles}
+      collabFileContents={collabFileContents} onAddToCollab={handleAddToCollab}
+      onRemoveFromCollab={handleRemoveFromCollab} onSelectCollabFile={handleSelectCollabFile} />
+  );
+
+  const rightPanelOpen = isGeminiOpen || (isInRoom && (isChatOpen || isVoiceOpen));
 
   return (
-    <div className={`flex flex-col h-[100dvh] ${bg} text-slate-300 overflow-hidden overflow-x-hidden`}>
+    <div className="flex flex-col h-[100dvh] bg-bg text-fg font-sans overflow-hidden overflow-x-hidden">
+      <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
 
-      {/* ── Header ──────────────────────────────────────────────────── */}
-      <header className={`h-14 flex items-center justify-between px-4 ${isDark ? 'bg-[#181821]' : 'bg-[#DBDFE7]'} z-20 shadow-sm border-b ${borderColor}`}>
-        <div className="flex items-center gap-2 sm:gap-3">
-          <button 
+      {/* ── Title bar: brand + project workspace ────────────────────── */}
+      <header className="shrink-0 flex items-start gap-1 bg-bg-panel border-b border-line z-20">
+        <div className="flex items-center h-11 pl-2 md:pl-3 gap-1 shrink-0">
+          <button
             onClick={() => setIsSidebarOpen(true)}
             aria-label="Open file sidebar"
-            className={`md:hidden p-1.5 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500/50 ${isDark ? 'text-slate-400 hover:bg-slate-800' : 'text-slate-500 hover:bg-slate-200'}`}>
-            <Menu size={20} />
+            className={`md:hidden ${iconBtn}`}>
+            <Menu size={16} />
           </button>
-          <img src="/CodeCollab-logo.png" alt="Skiffy Logo" className="w-8 h-8 sm:w-10 sm:h-10 object-contain" />
-          <span className={`hidden sm:inline font-black tracking-tighter quantico-font text-[24px] sm:text-[28px] ${textPrimary} select-none`}>
-            Skiffy
+          <span className="font-semibold tracking-tight text-[13px] text-fg select-none pr-2">
+            Shenron
           </span>
-          <button 
-            onClick={toggleTheme}
-            aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-            title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-            className={`relative flex items-center justify-center w-8 h-8 ml-1 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500/50 rounded-lg ${isDark ? 'text-slate-400 hover:text-amber-300' : 'text-slate-500 hover:text-blue-500'}`}>
-            <Sun size={20} className={`absolute transition-all duration-500 ease-in-out ${isDark ? 'scale-100 rotate-0 opacity-100' : 'scale-0 -rotate-90 opacity-0'}`} />
-            <Moon size={20} className={`absolute transition-all duration-500 ease-in-out ${isDark ? 'scale-0 rotate-90 opacity-0' : 'scale-100 rotate-0 opacity-100'}`} />
-          </button>
         </div>
-
-        <div className="flex items-center gap-1.5">
-          <div className="hidden md:flex items-center gap-1.5">
-            {/* Terminal toggle */}
-            <button
-              onClick={() => setIsTerminalOpen(prev => !prev)}
-              aria-label={isTerminalOpen ? 'Hide Terminal' : 'Open Terminal'}
-              aria-expanded={isTerminalOpen}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 ${
-                isTerminalOpen
-                  ? isDark ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-emerald-500/15 text-emerald-700 border border-emerald-500/30'
-                  : isDark ? 'text-slate-400 hover:bg-slate-700/50 hover:text-emerald-400' : 'text-slate-500 hover:bg-slate-200 hover:text-emerald-700'
-              }`}
-              title={isTerminalOpen ? 'Hide Terminal' : 'Open Terminal'}
-            >
-              <Terminal size={15} />
-              <span className="hidden xl:inline">Terminal</span>
-            </button>
-
-            <button aria-label="Run current file" disabled={!activeFile} onClick={() => setIsOutputOpen(value => !value)} className="flex items-center gap-1 rounded px-2 py-1 text-xs focus-visible:outline focus-visible:outline-purple-400"><Play size={14} /> Run file</button>
-            {/* Gemini toggle */}
-            <button
-              onClick={() => setIsGeminiOpen(prev => !prev)}
-              aria-label={isGeminiOpen ? 'Close AI Assistant panel' : 'Open AI Assistant panel'}
-              aria-expanded={isGeminiOpen}
-              className={`flex items-center justify-center w-8 h-8 rounded-lg transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-purple-500/50 ${
-                isGeminiOpen
-                  ? isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-500/15 text-blue-600'
-                  : isDark ? 'text-slate-400 hover:bg-slate-700/50 hover:text-blue-400' : 'text-slate-500 hover:bg-slate-200 hover:text-blue-600'
-              }`}
-              title={isGeminiOpen ? 'Close AI Assistant' : 'Open AI Assistant'}
-            >
-              <Sparkles size={17} />
-            </button>
-
-            {/* Voice + Chat toggle (collab only) */}
-            {isInRoom && (
-              <>
-                <button
-                  onClick={() => setIsVoiceOpen(prev => !prev)}
-                  aria-label={isVoiceOpen ? 'Close voice panel' : 'Open voice panel'}
-                  aria-expanded={isVoiceOpen}
-                  className={`flex items-center justify-center w-8 h-8 rounded-lg transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-purple-500/50 ${
-                    isVoiceOpen
-                      ? isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-500/15 text-emerald-600'
-                      : isDark ? 'text-slate-400 hover:bg-slate-700/50 hover:text-emerald-400' : 'text-slate-500 hover:bg-slate-200 hover:text-emerald-600'
-                  }`}
-                  title={isVoiceOpen ? 'Close Voice' : 'Open Voice'}
-                >
-                  <Headphones size={17} />
-                </button>
-                <button
-                  onClick={() => setIsChatOpen(prev => !prev)}
-                  aria-label={isChatOpen ? 'Close chat panel' : 'Open chat panel'}
-                  aria-expanded={isChatOpen}
-                  className={`relative flex items-center justify-center w-8 h-8 rounded-lg transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-purple-500/50 ${
-                    isChatOpen
-                      ? isDark ? 'bg-[#CAA4F7]/20 text-[#CAA4F7]' : 'bg-[#CAA4F7]/15 text-[#9B6DD7]'
-                      : isDark ? 'text-slate-400 hover:bg-slate-700/50 hover:text-[#CAA4F7]' : 'text-slate-500 hover:bg-slate-200 hover:text-[#9B6DD7]'
-                  }`}
-                  title={isChatOpen ? 'Close Chat' : 'Open Chat'}
-                >
-                  {!isChatOpen && unreadChatCount > 0 && (
-                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-pink-500 text-white text-[9px] leading-4 font-bold">
-                      {unreadChatCount > 99 ? '99+' : unreadChatCount}
-                    </span>
-                  )}
-                  {isChatOpen ? <PanelRightClose size={18} /> : <MessageSquare size={18} />}
-                </button>
-              </>
-            )}
-          </div>
-
-          {/* Push to GitHub */}
-          <button
-            onClick={onOpenGitHubPush}
-            aria-label="Push code to GitHub"
-            title="Push to GitHub"
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-95 border ${
-              isDark
-                ? 'bg-slate-800/80 hover:bg-slate-700 text-slate-200 border-slate-700 hover:border-purple-500/50'
-                : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200 hover:border-purple-400'
-            } shadow-sm`}
-          >
-            <Github size={14} className="text-purple-400" />
-            <span className="hidden sm:inline">Push</span>
+        <div className="flex-1 min-w-0">
+          <WorkspaceBar workspace={workspace} room={collab.provider} />
+        </div>
+        {/* Mobile-only quick actions (desktop uses the activity bar) */}
+        <div className="flex md:hidden items-center h-11 pr-2 gap-1 shrink-0">
+          <button onClick={onOpenGitHubPush} aria-label="Push code to GitHub" title="Push to GitHub" className={iconBtn}>
+            <Github size={16} />
           </button>
-
           {!isInRoom && (
             <button onClick={onOpenCollab}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#CAA4F7]/15 hover:bg-[#CAA4F7]/25 text-[#CAA4F7] text-xs font-bold transition-all active:scale-95 border border-[#CAA4F7]/20">
-              <Users size={14} /> Collab
+              className="inline-flex items-center gap-1.5 h-7 px-3 rounded-ctl border border-line bg-bg-elevated hover:border-line-hover text-[12px] font-medium text-fg transition-colors">
+              <Users size={14} className="text-fg-secondary" /> Collab
             </button>
           )}
         </div>
       </header>
 
-      <WorkspaceBar workspace={workspace} room={collab.provider} />
+      {/* ── Body ────────────────────────────────────────────────────── */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
 
-      {/* ── Main content (resizable panels) ─────────────────────────── */}
-      <div className="flex flex-1 min-h-0 overflow-hidden relative">
-
-        {/* Mobile sidebar overlay */}
-        {isSidebarOpen && (
-          <div className="fixed inset-0 z-40 bg-black/50 md:hidden backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)} />
-        )}
-
-        {/* Mobile sidebar drawer */}
-        <div className={`fixed md:hidden inset-y-0 left-0 z-50 w-[86vw] max-w-[320px] flex flex-col ${bg} border-r ${borderColor} transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-          <div className={`flex items-center justify-between px-4 py-3 border-b ${borderColor}`}>
-            <span className={`font-bold ${textPrimary}`}>Files</span>
-            <button onClick={() => setIsSidebarOpen(false)} className={`p-1.5 rounded-md ${textMuted} hover:bg-red-500/10 hover:text-red-500 transition-colors`}>
-              <X size={20} />
-            </button>
-          </div>
-          <div className="px-2 pt-3 pb-2 space-y-2">
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setTriggerNewFile(prev => prev + 1);
-                  setIsSidebarOpen(false);
-                }}
-                className="flex-1 flex items-center justify-center gap-1.5 bg-[#CAA4F7] hover:bg-[#D4B5F9] text-[#1E1E2A] py-2.5 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95"
-              >
-                <Plus size={14} /> New File
-              </button>
-              <button
-                onClick={() => {
-                  onFileCreate();
-                  setIsSidebarOpen(false);
-                }}
-                className={`flex items-center justify-center px-2.5 rounded-lg border text-xs font-semibold transition-all active:scale-95 shadow-sm ${
-                  isDark ? 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-slate-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
-                }`}
-                title="Create scratchpad snippet"
-              >
-                Snippet
-              </button>
-              <button 
-                onClick={() => fileInputRef.current?.click()} 
-                aria-label="Upload file"
-                className="flex items-center justify-center px-3 rounded-lg bg-[#CAA4F7]/20 hover:bg-[#CAA4F7]/30 text-[#CAA4F7] border border-[#CAA4F7]/30 transition-all active:scale-95 shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50" 
-                title="Upload File">
-                <Upload size={14} />
-              </button>
-              <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-            </div>
-            <div className="flex gap-2">
-              <button 
-                onClick={onOpenGitHub}
-                aria-label="Import repository from GitHub"
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-bold transition-all border focus:outline-none focus:ring-2 focus:ring-purple-500/50 ${isDark ? 'bg-[#232340] hover:bg-[#2a2a50] text-slate-300 border-slate-700/50 hover:border-purple-500/50' : 'bg-white hover:bg-slate-50 text-slate-600 border-slate-300 hover:border-purple-400'} active:scale-[0.98] shadow-sm`}
-                title="Import repository from GitHub"
-              >
-                <Github size={13} /> Import
-              </button>
-              <button 
-                onClick={onOpenGitHubPush}
-                aria-label="Push changes to GitHub"
-                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-bold text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-sm transition-all active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-                title="Push code to GitHub"
-              >
-                <Upload size={13} /> Push
-              </button>
-            </div>
-          </div>
-          <div className="flex-1 overflow-y-auto px-2 pb-2 custom-scrollbar">
-            <FileExplorer files={files} activeFileId={activeFileId} loadingFileId={loadingFileId}
-              onFileSelect={handleMobileFileSelect} onFileDelete={onFileDelete} onRepoDelete={onRepoDelete}
-              onFileCreate={onFileCreate} triggerNewFile={triggerNewFile}
-              isInRoom={isInRoom} isHost={collab.isHost} sharedFiles={collab.sharedFiles}
-              collabFileContents={collabFileContents} onAddToCollab={handleAddToCollab}
-              onRemoveFromCollab={handleRemoveFromCollab} onSelectCollabFile={handleSelectCollabFile} />
-          </div>
-        </div>
-
-        {/* Desktop: resizable panel group */}
-        <Group orientation="horizontal" className="flex-1 min-h-0 hidden md:flex" id="editor-layout">
-
-          {/* Sidebar panel */}
-          <Panel defaultSize="18%" minSize="12%" maxSize="35%" className={`flex flex-col ${bg} border-r ${borderColor}`}>
-            <div className="px-2 pt-4 pb-2 space-y-2 shrink-0">
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setTriggerNewFile(prev => prev + 1)}
-                  className="flex-1 flex items-center justify-center gap-1.5 bg-[#CAA4F7] hover:bg-[#D4B5F9] text-[#1E1E2A] py-2.5 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95"
-                >
-                  <Plus size={14} /> New File
-                </button>
-                <button
-                  onClick={() => onFileCreate()}
-                  className={`flex items-center justify-center px-2.5 rounded-lg border text-xs font-semibold transition-all active:scale-95 shadow-sm ${
-                    isDark ? 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-slate-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
-                  }`}
-                  title="Create quick scratchpad snippet"
-                >
-                  Snippet
-                </button>
-                <button onClick={() => fileInputRef.current?.click()} className="flex items-center justify-center px-3 rounded-lg bg-[#CAA4F7]/20 hover:bg-[#CAA4F7]/30 text-[#CAA4F7] border border-[#CAA4F7]/30 transition-all active:scale-95 shadow-sm" title="Upload File">
-                  <Upload size={14} />
-                </button>
-                <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-              </div>
-              <div className="flex gap-2">
-                <button onClick={onOpenGitHub}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-bold transition-all border ${isDark ? 'bg-[#232340] hover:bg-[#2a2a50] text-slate-300 border-slate-700/50 hover:border-purple-500/50' : 'bg-white hover:bg-slate-50 text-slate-600 border-slate-300 hover:border-purple-400'} active:scale-[0.98] shadow-sm`}
-                  title="Import from GitHub"
-                >
-                  <Github size={13} /> Import
-                </button>
-                <button onClick={onOpenGitHubPush}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-bold text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-sm transition-all active:scale-[0.98]"
-                  title="Commit & Push to GitHub"
-                >
-                  <Upload size={13} /> Push
-                </button>
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto px-2 pb-2 custom-scrollbar">
-              {files.length === 0 && !(isInRoom && collab.sharedFiles.length > 0) ? (
-                <div className={`flex flex-col items-center justify-center h-full py-8 ${textMuted}`}>
-                  <FolderOpen size={28} className="mb-3 opacity-50" />
-                  <p className="text-xs text-center">No snippets yet</p>
-                </div>
-              ) : (
-                <FileExplorer files={files} activeFileId={activeFileId} loadingFileId={loadingFileId}
-                  onFileSelect={onFileSelect} onFileDelete={onFileDelete} onRepoDelete={onRepoDelete}
-                  onFileCreate={onFileCreate} triggerNewFile={triggerNewFile}
-                  isInRoom={isInRoom} isHost={collab.isHost} sharedFiles={collab.sharedFiles}
-                  collabFileContents={collabFileContents} onAddToCollab={handleAddToCollab}
-                  onRemoveFromCollab={handleRemoveFromCollab} onSelectCollabFile={handleSelectCollabFile} />
-              )}
-            </div>
-          </Panel>
-
-          <ResizeHandle isDark={isDark} />
-
-          {/* Editor panel */}
-          <Panel defaultSize={isGeminiOpen && isChatOpen ? "44%" : isGeminiOpen || isChatOpen ? "56%" : "82%"} minSize="30%" className="flex flex-col min-w-0">
-            {!activeFile ? (
-              <div className={`flex-1 flex flex-col items-center justify-center ${bgEditor} h-full relative overflow-hidden`}>
-                {/* DotField Background */}
-                <div className="absolute inset-0 z-0">
-                  <DotField
-                    dotRadius={2}
-                    dotSpacing={14}
-                    bulgeStrength={80}
-                    glowRadius={200}
-                    sparkle={true}
-                    waveAmplitude={0}
-                    gradientFrom={isDark ? 'rgba(202, 164, 247, 0.45)' : 'rgba(136, 57, 239, 0.35)'}
-                    gradientTo={isDark ? 'rgba(139, 92, 246, 0.30)' : 'rgba(168, 85, 247, 0.25)'}
-                    glowColor={isDark ? '#1E1E2A' : '#E5E8EE'}
-                  />
-                </div>
-                {/* Content */}
-                <div className="text-center max-w-md px-8 relative z-10">
-                  <FolderOpen size={48} className={`mx-auto mb-8 ${isDark ? 'text-blue-400/50' : 'text-blue-500/50'}`} />
-                  <h2 className={`text-xl font-semibold mb-2 ${textPrimary}`}>Welcome to Skiffy</h2>
-                  <div className="flex gap-3 justify-center">
-                    <button onClick={() => setTriggerNewFile(prev => prev + 1)} className="flex items-center gap-2 px-6 py-3 bg-[#CAA4F7] hover:bg-[#D4B5F9] text-[#1E1E2A] rounded-lg text-sm font-bold transition-all shadow-md active:scale-95">
-                      <Plus size={18} /> New File
-                    </button>
-                    <button onClick={() => onFileCreate()} className={`flex items-center gap-2 px-5 py-3 rounded-lg text-sm font-semibold border transition-all active:scale-95 shadow-sm ${isDark ? 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-slate-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'}`}>
-                      Snippet
-                    </button>
-                  </div>
-                </div>
-              </div>
+        {/* Activity bar (desktop) */}
+        <nav aria-label="Activity bar" className="hidden md:flex w-12 shrink-0 flex-col items-center justify-between bg-bg-panel border-r border-line py-1">
+          <div className="flex flex-col items-center w-full">
+            <ActivityItem label="Explorer" active={isExplorerOpen} onClick={() => setIsExplorerOpen(v => !v)} expanded={isExplorerOpen}>
+              <Files size={18} />
+            </ActivityItem>
+            <ActivityItem
+              label={isGeminiOpen ? 'Close AI Assistant panel' : 'Open AI Assistant panel'}
+              title={isGeminiOpen ? 'Close Agent' : 'Open Agent'}
+              active={isGeminiOpen} expanded={isGeminiOpen}
+              onClick={() => setIsGeminiOpen(prev => !prev)}>
+              <Bot size={18} />
+            </ActivityItem>
+            {!isInRoom ? (
+              <ActivityItem label="Collab" title="Collaborate" onClick={onOpenCollab}>
+                <Users size={18} />
+              </ActivityItem>
             ) : (
-              <Group orientation="horizontal" className="flex-1 relative overflow-hidden h-full">
-                {/* Editor Panel */}
-                <Panel defaultSize="70%" minSize="35%" className="relative overflow-hidden">
-                  {collab.status === 'waiting-approval' && (
-                    <div className={`absolute inset-0 z-10 flex flex-col items-center justify-center ${isDark ? 'bg-[#1e1e2e]/90' : 'bg-[#eff1f5]/90'} backdrop-blur-sm`}>
-                      <Users size={32} className="text-[#CAA4F7] mb-4" />
-                      <p className={`text-sm font-medium ${textPrimary}`}>Waiting for host approval...</p>
-                      <p className={`text-xs mt-1 ${textMuted}`}>The room host will accept or reject your request.</p>
-                      <button onClick={collab.leaveRoom} className="mt-4 px-4 py-2 rounded-lg bg-red-500/15 text-red-400 text-xs font-bold hover:bg-red-500/25 transition-colors">Cancel</button>
-                    </div>
-                  )}
-                  {isActiveFileShared && collab.provider && collab.status === 'connected' ? (
-                    <CollabMonacoEditor file={activeFile} theme={isDark ? 'dark' : 'light'} fontSize={fontSize}
-                      provider={collab.provider} onChange={(code) => onCodeChange(activeFile.id, code)}
-                      onCursorChange={(ln, col) => setCursorPosition({ ln, col })}
-                      onSelectionChange={(count) => setSelectionCount(count)} />
-                  ) : (
-                    <ModernMonacoEditor file={activeFile} theme={isDark ? 'dark' : 'light'} fontSize={fontSize}
-                      onChange={(code) => onCodeChange(activeFile.id, code)}
-                      onCursorChange={(ln, col) => setCursorPosition({ ln, col })}
-                      onSelectionChange={(count) => setSelectionCount(count)} />
-                  )}
-                </Panel>
-
-                {isOutputOpen && (
-                  <>
-                    {/* Vertical Resize Handle */}
-                    <Separator
-                      className={`group relative flex items-center justify-center w-[5px] cursor-col-resize select-none transition-all duration-150 ease-out
-                        ${isDark ? 'bg-slate-800/60 hover:bg-emerald-500/40' : 'bg-slate-300/60 hover:bg-emerald-400/40'}`}
-                    >
-                      <div className={`w-[3px] h-8 rounded-full transition-all duration-200 ease-out
-                        ${isDark ? 'bg-slate-600 group-hover:bg-emerald-400 group-active:bg-emerald-300' : 'bg-slate-400 group-hover:bg-emerald-500 group-active:bg-emerald-600'}
-                        group-hover:h-12 group-active:h-16`}
-                      />
-                    </Separator>
-
-                    {/* Code Runner / Terminal Panel */}
-                    <Panel defaultSize="32%" minSize="18%" maxSize="65%" className="overflow-hidden">
-                      <CodeRunner
-                        code={activeFile.content}
-                        language={activeFile.language}
-                        fileName={activeFile.name}
-                        onClose={() => setIsOutputOpen(false)}
-                        onLanguageChange={(newLang) => onLanguageChange(activeFile.id, newLang)}
-                      />
-                    </Panel>
-                  </>
-                )}
-              </Group>
-            )}
-          </Panel>
-
-          {/* Gemini panel */}
-          {isGeminiOpen && (
-            <>
-              <ResizeHandle isDark={isDark} />
-              <Panel defaultSize="26%" minSize="18%" maxSize="45%" className="flex flex-col min-w-0">
-                <HarnessPanel beginAgent={workspace.beginAgent} provider={collab.provider} sharedFiles={collab.sharedFiles}
-                  activeFile={activeFile}
-                  allFiles={files}
-                  onCodeChange={(fileId, content) => onCodeChange(fileId, content)}
-                  onFileCreate={onFileCreate}
-                  onAgentFileCreate={onAgentFileCreate || onFileCreate}
-                />
-              </Panel>
-            </>
-          )}
-
-          {/* Chat panel (collab only) */}
-          {isInRoom && isChatOpen && (
-            <>
-              <ResizeHandle isDark={isDark} />
-              <Panel defaultSize="22%" minSize="16%" maxSize="40%" className="flex flex-col min-w-0">
-                <ChatPanel isOpen={true} messages={collab.chatMessages} selfPeerId={collab.peerId}
-                  onSendMessage={collab.sendChatMessage} canSend={collab.status === 'connected'} onClose={() => setIsChatOpen(false)} />
-              </Panel>
-            </>
-          )}
-
-          {/* Voice panel (collab only) */}
-          {isInRoom && isVoiceOpen && (
-            <>
-              <ResizeHandle isDark={isDark} />
-              <Panel defaultSize="20%" minSize="14%" maxSize="35%" className="flex flex-col min-w-0">
-                <VoiceLobbyPanel
-                  isOpen={true}
-                  members={collab.members}
-                  selfPeerId={collab.peerId}
-                  provider={collab.provider}
-                  canUseVoice={collab.status === 'connected'}
-                  onClose={() => setIsVoiceOpen(false)}
-                  voiceManager={collab.voiceManager}
-                />
-              </Panel>
-            </>
-          )}
-
-        </Group>
-
-        {/* Mobile: non-resizable layout */}
-        <div className="flex-1 flex flex-col min-w-0 md:hidden">
-          <div className={`shrink-0 border-b ${borderColor} px-2 py-2 flex items-center gap-1 overflow-x-auto scrollbar-hide`}>
-            {([
-              { id: 'editor', label: 'Editor', icon: <Code2 size={13} /> },
-              { id: 'runner', label: 'Run', icon: <Play size={13} /> },
-              { id: 'terminal', label: 'Terminal', icon: <Terminal size={13} /> },
-              { id: 'gemini', label: 'AI', icon: <Sparkles size={13} /> },
-            ] as Array<{ id: MobilePane; label: string; icon: React.ReactNode }>).map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => { setMobilePane(tab.id); if (tab.id === 'terminal') setIsTerminalOpen(true); }}
-                className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold transition-colors ${
-                  mobilePane === tab.id
-                    ? (isDark ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-500/15 text-purple-700')
-                    : (isDark ? 'text-slate-400 bg-slate-800/40' : 'text-slate-600 bg-slate-200/70')
-                }`}
-              >
-                {tab.icon} {tab.label}
-              </button>
-            ))}
-
-            {isInRoom && (
               <>
-                <button
-                  onClick={() => setMobilePane('chat')}
-                  className={`relative shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold transition-colors ${
-                    mobilePane === 'chat'
-                      ? (isDark ? 'bg-[#CAA4F7]/20 text-[#CAA4F7]' : 'bg-[#CAA4F7]/15 text-[#9B6DD7]')
-                      : (isDark ? 'text-slate-400 bg-slate-800/40' : 'text-slate-600 bg-slate-200/70')
-                  }`}
-                >
-                  <MessageSquare size={13} /> Chat
-                  {mobilePane !== 'chat' && unreadChatCount > 0 && (
-                    <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-1 rounded-full bg-pink-500 text-white text-[8px] leading-3.5 font-bold">
-                      {unreadChatCount > 99 ? '99+' : unreadChatCount}
-                    </span>
-                  )}
-                </button>
-                <button
-                  onClick={() => setMobilePane('voice')}
-                  className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold transition-colors ${
-                    mobilePane === 'voice'
-                      ? (isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-500/15 text-emerald-700')
-                      : (isDark ? 'text-slate-400 bg-slate-800/40' : 'text-slate-600 bg-slate-200/70')
-                  }`}
-                >
-                  <Headphones size={13} /> Voice
-                </button>
+                <ActivityItem
+                  label={isChatOpen ? 'Close chat panel' : 'Open chat panel'}
+                  title={isChatOpen ? 'Close Chat' : 'Open Chat'}
+                  active={isChatOpen} expanded={isChatOpen}
+                  onClick={() => setIsChatOpen(prev => !prev)}
+                  badge={!isChatOpen && unreadChatCount > 0 ? (unreadChatCount > 99 ? '99+' : String(unreadChatCount)) : undefined}>
+                  <MessageSquare size={18} />
+                </ActivityItem>
+                <ActivityItem
+                  label={isVoiceOpen ? 'Close voice panel' : 'Open voice panel'}
+                  title={isVoiceOpen ? 'Close Voice' : 'Open Voice'}
+                  active={isVoiceOpen} expanded={isVoiceOpen}
+                  onClick={() => setIsVoiceOpen(prev => !prev)}>
+                  <Headphones size={18} />
+                </ActivityItem>
               </>
             )}
+            <ActivityItem label="Push code to GitHub" title="Push to GitHub" onClick={onOpenGitHubPush}>
+              <Github size={18} />
+            </ActivityItem>
+            {onOpenCommandPalette && (
+              <ActivityItem label="Open command palette" title="Command palette (Ctrl+K)" onClick={onOpenCommandPalette}>
+                <Command size={18} />
+              </ActivityItem>
+            )}
           </div>
+          <div className="flex flex-col items-center w-full">
+            <ActivityItem
+              label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+              onClick={toggleTheme}>
+              {isDark ? <Sun size={18} /> : <Moon size={18} />}
+            </ActivityItem>
+          </div>
+        </nav>
 
-          {mobilePane === 'editor' && !activeFile ? (
-            <div className={`flex-1 flex flex-col items-center justify-center ${bgEditor} relative overflow-hidden`}>
-              {/* DotField Background */}
-              <div className="absolute inset-0 z-0">
-                <DotField
-                  dotRadius={2}
-                  dotSpacing={14}
-                  bulgeStrength={80}
-                  glowRadius={200}
-                  sparkle={true}
-                  waveAmplitude={0}
-                  gradientFrom={isDark ? 'rgba(202, 164, 247, 0.45)' : 'rgba(136, 57, 239, 0.35)'}
-                  gradientTo={isDark ? 'rgba(139, 92, 246, 0.30)' : 'rgba(168, 85, 247, 0.25)'}
-                  glowColor={isDark ? '#1E1E2A' : '#E5E8EE'}
-                />
+        <div className="flex flex-1 min-w-0 flex-col">
+          <div className="flex flex-1 min-h-0 overflow-hidden relative">
+
+            {/* Mobile sidebar overlay */}
+            {isSidebarOpen && (
+              <div className="fixed inset-0 z-40 bg-black/60 md:hidden" onClick={() => setIsSidebarOpen(false)} />
+            )}
+
+            {/* Mobile sidebar drawer */}
+            <div className={`fixed md:hidden inset-y-0 left-0 z-50 w-[86vw] max-w-[320px] flex flex-col bg-bg-panel border-r border-line transform transition-transform duration-200 ease-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+              <div className="flex items-center justify-between h-11 pl-3 pr-2 border-b border-line">
+                <span className="text-[13px] font-semibold tracking-tight text-fg">Shenron</span>
+                <button onClick={() => setIsSidebarOpen(false)} aria-label="Close file sidebar" className={iconBtn}>
+                  <X size={16} />
+                </button>
               </div>
-              {/* Content */}
-              <div className="text-center max-w-md px-8 relative z-10">
-                <FolderOpen size={48} className={`mx-auto mb-8 ${isDark ? 'text-blue-400/50' : 'text-blue-500/50'}`} />
-                <div className="flex gap-2.5 justify-center">
-                  <button onClick={() => setTriggerNewFile(prev => prev + 1)} className="flex items-center gap-2 px-5 py-2.5 bg-[#CAA4F7] hover:bg-[#D4B5F9] text-[#1E1E2A] rounded-lg text-sm font-bold transition-all shadow-md">
-                    <Plus size={16} /> New File
-                  </button>
-                  <button onClick={() => onFileCreate()} className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold border ${isDark ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
-                    Snippet
-                  </button>
-                </div>
+              <div role="toolbar" aria-label="File actions" className="flex items-center gap-0.5 px-1 h-9 border-b border-line">
+                <button onClick={() => { onFileCreate(); setIsSidebarOpen(false); }} title="Create scratchpad snippet" className={sideBtn}>
+                  <FileCode size={14} /> Snippet
+                </button>
+                <button onClick={() => fileInputRef.current?.click()} aria-label="Upload file" title="Upload File" className={sideBtn}>
+                  <Upload size={14} /> Upload
+                </button>
+                <button onClick={onOpenGitHub} aria-label="Import repository from GitHub" title="Import repository from GitHub" className={sideBtn}>
+                  <Github size={14} /> Import
+                </button>
+                <button onClick={onOpenGitHubPush} aria-label="Push changes to GitHub" title="Push code to GitHub" className={sideBtn}>
+                  <Upload size={14} /> Push
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto px-1 py-1 custom-scrollbar">
+                {explorerList(handleMobileFileSelect)}
               </div>
             </div>
-          ) : mobilePane === 'editor' ? (
-            <div className="flex-1 relative overflow-hidden">
-              {collab.status === 'waiting-approval' && (
-                <div className={`absolute inset-0 z-10 flex flex-col items-center justify-center ${isDark ? 'bg-[#1e1e2e]/90' : 'bg-[#eff1f5]/90'} backdrop-blur-sm`}>
-                  <Users size={28} className="text-[#CAA4F7] mb-3" />
-                  <p className={`text-sm font-medium ${textPrimary}`}>Waiting for host approval...</p>
-                  <p className={`text-xs mt-1 ${textMuted}`}>The room host will accept or reject your request.</p>
-                  <button onClick={collab.leaveRoom} className="mt-4 px-4 py-2 rounded-lg bg-red-500/15 text-red-400 text-xs font-bold hover:bg-red-500/25 transition-colors">Cancel</button>
-                </div>
+
+            {/* Desktop: resizable panel group */}
+            <Group orientation="horizontal" className="flex-1 min-h-0 hidden md:flex" id="editor-layout">
+
+              {/* Explorer sidebar */}
+              {isExplorerOpen && (
+                <>
+                  <Panel id="explorer" defaultSize="18%" minSize="12%" maxSize="35%" className="flex flex-col bg-bg-panel">
+                    <div className="flex-1 overflow-y-auto px-1 pt-1 pb-2 custom-scrollbar">
+                      {explorerList(onFileSelect)}
+                    </div>
+                    {/* Secondary file actions (FileExplorer owns the header + New file) */}
+                    <div role="toolbar" aria-label="File actions" className="flex items-center gap-0.5 h-8 px-1 shrink-0 border-t border-line">
+                      <button onClick={() => onFileCreate()} title="Create quick scratchpad snippet" className={sideBtn}>
+                        <FileCode size={14} /> Snippet
+                      </button>
+                      <button onClick={() => fileInputRef.current?.click()} aria-label="Upload file" title="Upload File" className={sideBtn}>
+                        <Upload size={14} /> Upload
+                      </button>
+                      <button onClick={onOpenGitHub} aria-label="Import from GitHub" title="Import from GitHub" className={sideBtn}>
+                        <Github size={14} /> Import
+                      </button>
+                    </div>
+                  </Panel>
+                  <ResizeHandle />
+                </>
               )}
-              {activeFile ? (
-                isActiveFileShared && collab.provider && collab.status === 'connected' ? (
-                  <CollabMonacoEditor file={activeFile} theme={isDark ? 'dark' : 'light'} fontSize={fontSize}
-                    provider={collab.provider} onChange={(code) => onCodeChange(activeFile.id, code)}
-                    onCursorChange={(ln, col) => setCursorPosition({ ln, col })}
-                    onSelectionChange={(count) => setSelectionCount(count)} />
+
+              {/* Editor column */}
+              <Panel id="editor" defaultSize={rightPanelOpen ? '56%' : '82%'} minSize="30%" className="flex flex-col min-w-0 bg-bg">
+                {!activeFile ? (
+                  <WorkspaceWelcome
+                    onCreateRoom={onOpenCollab}
+                    onJoinRoom={openJoinCollab}
+                    onNewFile={() => setTriggerNewFile(prev => prev + 1)}
+                    onNewSnippet={() => onFileCreate()}
+                  />
                 ) : (
-                  <ModernMonacoEditor file={activeFile} theme={isDark ? 'dark' : 'light'} fontSize={fontSize}
-                    onChange={(code) => onCodeChange(activeFile.id, code)}
-                    onCursorChange={(ln, col) => setCursorPosition({ ln, col })}
-                    onSelectionChange={(count) => setSelectionCount(count)} />
-                )
-              ) : (
-                <div className={`h-full flex flex-col items-center justify-center ${bgEditor} ${textMuted}`}>
-                  <FileCode size={24} className="mb-2 opacity-50" />
-                  <p className="text-xs font-semibold">Select a file to edit</p>
-                </div>
-              )}
-            </div>
-          ) : mobilePane === 'runner' ? (
-            <div className="flex-1 min-h-0 overflow-hidden">
-              {activeFile ? (
-                <CodeRunner
-                  code={activeFile.content}
-                  language={activeFile.language}
-                  fileName={activeFile.name}
-                  onLanguageChange={(newLang) => onLanguageChange(activeFile.id, newLang)}
-                />
-              ) : (
-                <div className={`h-full flex flex-col items-center justify-center ${bgEditor} ${textMuted}`}>
-                  <Play size={24} className="mb-2 opacity-50" />
-                  <p className="text-xs font-semibold">Open a file to run code</p>
-                </div>
-              )}
-            </div>
-          ) : mobilePane === 'gemini' ? (
-            <div className="flex-1 min-h-0 overflow-hidden">
-              <HarnessPanel beginAgent={workspace.beginAgent} provider={collab.provider} sharedFiles={collab.sharedFiles}
-                activeFile={activeFile}
-                allFiles={files}
-                onCodeChange={(fileId, content) => onCodeChange(fileId, content)}
-                onFileCreate={onFileCreate}
-                onAgentFileCreate={onAgentFileCreate || onFileCreate}
-              />
-            </div>
-          ) : mobilePane === 'chat' ? (
-            <div className="flex-1 min-h-0 overflow-hidden">
-              {isInRoom ? (
-                <ChatPanel
-                  isOpen={true}
-                  messages={collab.chatMessages}
-                  selfPeerId={collab.peerId}
-                  onSendMessage={collab.sendChatMessage}
-                  canSend={collab.status === 'connected'}
-                  onClose={() => setMobilePane('editor')}
-                />
-              ) : (
-                <div className={`h-full flex flex-col items-center justify-center ${bgEditor} ${textMuted}`}>
-                  <MessageSquare size={24} className="mb-2 opacity-50" />
-                  <p className="text-xs font-semibold">Join a room to use chat</p>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="flex-1 min-h-0 overflow-hidden">
-              {isInRoom ? (
-                <VoiceLobbyPanel
-                  isOpen={true}
-                  members={collab.members}
-                  selfPeerId={collab.peerId}
-                  provider={collab.provider}
-                  canUseVoice={collab.status === 'connected'}
-                  onClose={() => setMobilePane('editor')}
-                  voiceManager={collab.voiceManager}
-                />
-              ) : (
-                <div className={`h-full flex flex-col items-center justify-center ${bgEditor} ${textMuted}`}>
-                  <Headphones size={24} className="mb-2 opacity-50" />
-                  <p className="text-xs font-semibold">Join a room to use voice</p>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+                  <>
+                    {/* Tabs row */}
+                    <div className="flex items-stretch h-9 shrink-0 bg-bg-panel border-b border-line">
+                      <div role="tablist" aria-label="Open files" className="flex flex-1 min-w-0 items-stretch overflow-x-auto scrollbar-hide">
+                        {openTabs.map(tab => {
+                          const active = tab.id === activeFileId;
+                          return (
+                            <div key={tab.id}
+                              className={`group relative flex items-center gap-1.5 pl-3 pr-1 max-w-[220px] border-r border-line text-[12px] select-none cursor-pointer transition-colors ${
+                                active ? 'bg-bg text-fg' : 'text-fg-secondary hover:text-fg hover:bg-white/[0.03]'
+                              }`}
+                              onClick={() => onFileSelect(tab.id)}
+                            >
+                              {active && <span className="absolute inset-x-0 top-0 h-px bg-accent" aria-hidden="true" />}
+                              <button role="tab" aria-selected={active} className="flex items-center gap-1.5 min-w-0 focus:outline-none focus-visible:underline"
+                                onClick={(e) => { e.stopPropagation(); onFileSelect(tab.id); }}>
+                                <LanguageIcon language={tab.language} size={14} className="shrink-0" />
+                                <span className="truncate">{tab.name}</span>
+                                {tab.shared && <Users size={12} className="shrink-0 text-fg-muted" aria-label="Shared" />}
+                              </button>
+                              {openTabs.length > 1 && (
+                                <button
+                                  aria-label={`Close ${tab.name}`}
+                                  onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
+                                  className={`inline-flex items-center justify-center w-5 h-5 rounded-[4px] text-fg-muted hover:text-fg hover:bg-white/10 ${active ? '' : 'opacity-0 group-hover:opacity-100'} focus:opacity-100`}>
+                                  <X size={12} />
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="flex items-center gap-0.5 px-1.5 shrink-0">
+                        <button aria-label="Run current file" aria-pressed={isOutputOpen} disabled={!activeFile} onClick={() => setIsOutputOpen(value => !value)}
+                          title="Run file"
+                          className={`inline-flex items-center gap-1.5 h-7 px-2 rounded-ctl text-[12px] font-medium transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-accent ${isOutputOpen ? 'text-fg bg-white/5' : 'text-fg-secondary hover:text-fg hover:bg-white/5'}`}>
+                          <Play size={14} /> Run file
+                        </button>
+                      </div>
+                    </div>
 
-      </div>
+                    <Group orientation="vertical" className="flex-1 min-h-0 relative overflow-hidden" id="editor-output">
+                      <Panel id="editor-main" defaultSize={isOutputOpen ? '65%' : '100%'} minSize="25%" className="relative overflow-hidden">
+                        {waitingOverlay}
+                        {renderEditor(activeFile)}
+                      </Panel>
+                      {isOutputOpen && (
+                        <>
+                          <ResizeHandle vertical />
+                          <Panel id="editor-output-panel" defaultSize="35%" minSize="15%" maxSize="75%" className="overflow-hidden">
+                            <CodeRunner
+                              code={activeFile.content}
+                              language={activeFile.language}
+                              fileName={activeFile.name}
+                              onClose={() => setIsOutputOpen(false)}
+                              onLanguageChange={(newLang) => onLanguageChange(activeFile.id, newLang)}
+                            />
+                          </Panel>
+                        </>
+                      )}
+                    </Group>
+                  </>
+                )}
+              </Panel>
 
-      <div className={mobilePane === 'terminal' ? 'flex flex-col shrink-0' : 'hidden md:flex md:flex-col shrink-0'}>
-        <TerminalPanel workspace={workspace} room={collab.provider} visible={isTerminalOpen} onHide={() => setIsTerminalOpen(false)} />
-      </div>
+              {/* Right panel: agent */}
+              {isGeminiOpen && (
+                <>
+                  <ResizeHandle />
+                  <Panel id="agent" defaultSize="26%" minSize="18%" maxSize="45%" className="flex flex-col min-w-0 bg-bg-panel">
+                    {renderHarness()}
+                  </Panel>
+                </>
+              )}
 
-      {/* ── Status bar ──────────────────────────────────────────────── */}
-      <div className={`hidden md:flex h-8 items-center justify-between px-2 sm:px-4 text-[10px] sm:text-[12px] kode-font font-black ${isDark ? 'bg-[#181821] text-white/70' : 'bg-[#DBDFE7] text-slate-700'}`}>
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className="flex items-center gap-1.5 h-4">
-            <FileCode size={14} className="hidden sm:block" />
-            <span>{files.length} FILES</span>
-          </div>
-          {activeFile && (
-            <div className="flex items-center animate-fade-in">
-              <div className={`flex items-center gap-2 h-6 transition-colors ${isDark ? 'text-white/70' : 'text-slate-700'}`}>
-                <LanguageIcon language={activeFile.language} size={14} />
-                <span>{activeFile.language ? activeFile.language.toUpperCase() : 'AUTO DETECTING...'}</span>
+              {/* Chat panel (collab only) */}
+              {isInRoom && isChatOpen && (
+                <>
+                  <ResizeHandle />
+                  <Panel id="chat" defaultSize="22%" minSize="16%" maxSize="40%" className="flex flex-col min-w-0 bg-bg-panel">
+                    <ChatPanel isOpen={true} messages={collab.chatMessages} selfPeerId={collab.peerId}
+                      onSendMessage={collab.sendChatMessage} canSend={collab.status === 'connected'} onClose={() => setIsChatOpen(false)} />
+                  </Panel>
+                </>
+              )}
+
+              {/* Voice panel (collab only) */}
+              {isInRoom && isVoiceOpen && (
+                <>
+                  <ResizeHandle />
+                  <Panel id="voice" defaultSize="20%" minSize="14%" maxSize="35%" className="flex flex-col min-w-0 bg-bg-panel">
+                    <VoiceLobbyPanel
+                      isOpen={true}
+                      members={collab.members}
+                      selfPeerId={collab.peerId}
+                      provider={collab.provider}
+                      canUseVoice={collab.status === 'connected'}
+                      onClose={() => setIsVoiceOpen(false)}
+                      voiceManager={collab.voiceManager}
+                    />
+                  </Panel>
+                </>
+              )}
+            </Group>
+
+            {/* Mobile: non-resizable layout */}
+            <div className="flex-1 flex flex-col min-w-0 md:hidden">
+              <div role="tablist" aria-label="Mobile panes" className="shrink-0 h-9 border-b border-line bg-bg-panel px-1 flex items-stretch overflow-x-auto scrollbar-hide">
+                {([
+                  { id: 'editor', label: 'Editor', icon: <Code2 size={14} /> },
+                  { id: 'runner', label: 'Run', icon: <Play size={14} /> },
+                  { id: 'terminal', label: 'Terminal', icon: <Terminal size={14} /> },
+                  { id: 'gemini', label: 'Agent', icon: <Bot size={14} /> },
+                  ...(isInRoom ? [
+                    { id: 'chat', label: 'Chat', icon: <MessageSquare size={14} /> },
+                    { id: 'voice', label: 'Voice', icon: <Headphones size={14} /> },
+                  ] : []),
+                ] as Array<{ id: MobilePane; label: string; icon: React.ReactNode }>).map((tab) => {
+                  const active = mobilePane === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => { setMobilePane(tab.id); if (tab.id === 'terminal') setIsTerminalOpen(true); }}
+                      className={`relative shrink-0 flex items-center gap-1.5 px-3 text-[12px] font-medium transition-colors ${active ? 'text-fg' : 'text-fg-secondary'}`}
+                    >
+                      {tab.icon} {tab.label}
+                      {tab.id === 'chat' && mobilePane !== 'chat' && unreadChatCount > 0 && (
+                        <span className="min-w-[16px] h-4 px-1 rounded-full bg-accent text-[#0A0A0F] text-[10px] leading-4 font-semibold">
+                          {unreadChatCount > 99 ? '99+' : unreadChatCount}
+                        </span>
+                      )}
+                      {active && <span className="absolute inset-x-2 bottom-0 h-px bg-accent" aria-hidden="true" />}
+                    </button>
+                  );
+                })}
               </div>
+
+              {mobilePane === 'editor' && !activeFile ? (
+                <WorkspaceWelcome
+                  compact
+                  onCreateRoom={onOpenCollab}
+                  onJoinRoom={openJoinCollab}
+                  onNewFile={() => setTriggerNewFile(prev => prev + 1)}
+                  onNewSnippet={() => onFileCreate()}
+                />
+              ) : mobilePane === 'editor' ? (
+                <div className="flex-1 relative overflow-hidden bg-bg">
+                  {waitingOverlay}
+                  {activeFile ? renderEditor(activeFile) : (
+                    <div className={emptyPane}>
+                      <FileCode size={16} className="mb-2" />
+                      <p className="text-[12px]">Select a file to edit</p>
+                    </div>
+                  )}
+                </div>
+              ) : mobilePane === 'runner' ? (
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  {activeFile ? (
+                    <CodeRunner
+                      code={activeFile.content}
+                      language={activeFile.language}
+                      fileName={activeFile.name}
+                      onLanguageChange={(newLang) => onLanguageChange(activeFile.id, newLang)}
+                    />
+                  ) : (
+                    <div className={emptyPane}>
+                      <Play size={16} className="mb-2" />
+                      <p className="text-[12px]">Open a file to run code</p>
+                    </div>
+                  )}
+                </div>
+              ) : mobilePane === 'gemini' ? (
+                <div className="flex-1 min-h-0 overflow-hidden bg-bg-panel">
+                  {renderHarness()}
+                </div>
+              ) : mobilePane === 'chat' ? (
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  {isInRoom ? (
+                    <ChatPanel
+                      isOpen={true}
+                      messages={collab.chatMessages}
+                      selfPeerId={collab.peerId}
+                      onSendMessage={collab.sendChatMessage}
+                      canSend={collab.status === 'connected'}
+                      onClose={() => setMobilePane('editor')}
+                    />
+                  ) : (
+                    <div className={emptyPane}>
+                      <MessageSquare size={16} className="mb-2" />
+                      <p className="text-[12px]">Join a room to use chat</p>
+                    </div>
+                  )}
+                </div>
+              ) : mobilePane === 'voice' ? (
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  {isInRoom ? (
+                    <VoiceLobbyPanel
+                      isOpen={true}
+                      members={collab.members}
+                      selfPeerId={collab.peerId}
+                      provider={collab.provider}
+                      canUseVoice={collab.status === 'connected'}
+                      onClose={() => setMobilePane('editor')}
+                      voiceManager={collab.voiceManager}
+                    />
+                  ) : (
+                    <div className={emptyPane}>
+                      <Headphones size={16} className="mb-2" />
+                      <p className="text-[12px]">Join a room to use voice</p>
+                    </div>
+                  )}
+                </div>
+              ) : null}
             </div>
-          )}
-        </div>
-        <div className="flex items-center gap-3">
-          {activeFile && (
-            <div className="flex items-center gap-1.5 h-4">
-              <Code2 size={14} className="hidden sm:block" />
-              <span>LN {cursorPosition.ln}, COL {cursorPosition.col} <span className="hidden sm:inline">{selectionCount > 0 && `(${selectionCount} selected)`}</span></span>
-            </div>
-          )}
+          </div>
+
+          {/* ── Bottom panel: terminal (single instance, kept mounted when hidden) ── */}
+          <div className={mobilePane === 'terminal' ? 'flex flex-col shrink-0' : 'hidden md:flex md:flex-col shrink-0'}>
+            <TerminalPanel workspace={workspace} room={collab.provider} visible={isTerminalOpen} onHide={() => setIsTerminalOpen(false)} />
+          </div>
         </div>
       </div>
 
@@ -835,60 +722,79 @@ export const EditorView: React.FC<EditorViewProps> = ({
           onDismissToast={collab.dismissToast} />
       )}
 
+      {/* ── Status bar ──────────────────────────────────────────────── */}
+      <footer className="hidden md:flex h-[22px] shrink-0 items-center justify-between px-2 bg-bg-panel border-t border-line text-[11px] text-fg-secondary select-none">
+        <div className="flex items-center h-full">
+          <button
+            onClick={() => setIsTerminalOpen(prev => !prev)}
+            aria-label={isTerminalOpen ? 'Hide Terminal' : 'Open Terminal'}
+            aria-expanded={isTerminalOpen}
+            title={isTerminalOpen ? 'Hide Terminal' : 'Open Terminal'}
+            className={`flex items-center gap-1 h-full px-2 transition-colors hover:bg-white/5 hover:text-fg focus:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-accent ${isTerminalOpen ? 'text-fg' : ''}`}
+          >
+            <Terminal size={12} />
+            <span>Terminal</span>
+          </button>
+          <span className="flex items-center gap-1 px-2">
+            <FileCode size={12} />
+            {files.length} {files.length === 1 ? 'file' : 'files'}
+          </span>
+          {isInRoom && (
+            <span className="flex items-center gap-1 px-2">
+              <Users size={12} />
+              {collab.members.length} in room
+            </span>
+          )}
+        </div>
+        <div className="flex items-center h-full">
+          {activeFile && (
+            <>
+              <span className="px-2">
+                Ln {cursorPosition.ln}, Col {cursorPosition.col}{selectionCount > 0 && ` (${selectionCount} selected)`}
+              </span>
+              <span className="flex items-center gap-1 px-2">
+                <LanguageIcon language={activeFile.language} size={12} />
+                {activeFile.language || 'Detecting…'}
+              </span>
+            </>
+          )}
+          <span className="px-2 text-fg-muted">Shenron</span>
+        </div>
+      </footer>
+
       {/* ── Toasts ──────────────────────────────────────────────────── */}
       {collab.toasts.length > 0 && (
-        <div className="fixed top-4 left-3 right-3 sm:left-auto sm:right-4 z-[100] flex flex-col gap-2.5 pointer-events-none">
+        <div className="fixed top-12 left-3 right-3 sm:left-auto sm:right-3 z-[100] flex flex-col gap-2 pointer-events-none">
           {collab.toasts.map(toast => (
             <div key={toast.id}
-              className={`pointer-events-auto relative flex items-center gap-3 pl-4 pr-3 py-3 min-w-[240px] max-w-[360px] rounded-2xl shadow-2xl text-[12px] font-semibold overflow-hidden
-                ${toast.exiting ? 'animate-toast-out' : 'animate-toast-in'}
-                ${toast.type === 'error'   ? 'bg-[#3a1a1e]/90 text-[#ff8fa3] border border-[#ff4d6d]/25' :
-                  toast.type === 'success' ? 'bg-[#1a2e1e]/90 text-[#8fd9a8] border border-[#4ade80]/25' :
-                  toast.type === 'warning' ? 'bg-[#2e2510]/90 text-[#fcd34d] border border-[#fbbf24]/25' :
-                  isDark ? 'bg-[#1e1e2e]/90 text-[#cdd6f4] border border-[#45475a]/60'
-                         : 'bg-white/90 text-[#1e1e2e] border border-slate-200/80'
-                } backdrop-blur-xl`}
+              className={`pointer-events-auto relative flex items-center gap-2.5 pl-3 pr-2 py-2 min-w-[240px] max-w-[360px] rounded-panel border border-line bg-bg-elevated shadow-subtle text-[12px] overflow-hidden
+                ${toast.exiting ? 'animate-toast-out' : 'animate-fade-in-up'}`}
             >
-              {/* Icon only — no text badge */}
-              <div className={`shrink-0 w-7 h-7 rounded-xl flex items-center justify-center text-[15px] ${
-                toast.destination === 'collab'  ? 'bg-purple-500/20' :
-                toast.destination === 'myfiles' ? 'bg-blue-500/20'   :
-                toast.type === 'error'          ? 'bg-red-500/20'     :
-                toast.type === 'success'        ? 'bg-green-500/20'   :
-                toast.type === 'warning'        ? 'bg-amber-500/20'   : 'bg-slate-500/20'
-              }`}>
-                {toast.destination === 'collab'  ? '⚡' :
-                 toast.destination === 'myfiles' ? '📁' :
-                 toast.type === 'error'          ? '✕'  :
-                 toast.type === 'success'        ? '✓'  :
-                 toast.type === 'warning'        ? '!'  : 'ℹ'}
-              </div>
+              <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${
+                toast.type === 'error'   ? 'bg-danger' :
+                toast.type === 'success' ? 'bg-success' :
+                toast.type === 'warning' ? 'bg-[#F2B66B]' : 'bg-accent'
+              }`} aria-hidden="true" />
 
-              {/* Text block */}
               <div className="flex-1 min-w-0">
                 {toast.fileName && (
-                  <div className={`truncate font-bold text-[11px] mb-0.5 ${
-                    toast.destination === 'collab'  ? 'text-purple-300' :
-                    toast.destination === 'myfiles' ? 'text-blue-300'   : 'opacity-90'
-                  }`}>{toast.fileName}</div>
+                  <div className="truncate font-medium text-[12px] text-fg mb-0.5">
+                    {toast.destination === 'collab' ? 'Shared · ' : toast.destination === 'myfiles' ? 'My files · ' : ''}{toast.fileName}
+                  </div>
                 )}
-                <span className="leading-snug opacity-80">{toast.message}</span>
+                <span className={`leading-snug ${toast.type === 'error' ? 'text-danger' : 'text-fg-secondary'}`}>{toast.message}</span>
               </div>
 
-              <button 
+              <button
                 onClick={() => collab.dismissToast(toast.id)}
                 aria-label="Dismiss notification"
-                className="shrink-0 flex items-center justify-center w-6 h-6 rounded-full hover:bg-white/10 transition-all active:scale-90 opacity-40 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-white/30">
+                className="shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-ctl text-fg-muted hover:text-fg hover:bg-white/5 transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-accent">
                 <X size={12} />
               </button>
 
               {!toast.exiting && (
-                <div className="absolute bottom-0 left-0 right-0 h-[2px] rounded-b-2xl overflow-hidden">
-                  <div className={`h-full rounded-b-2xl origin-left ${
-                    toast.type === 'error'   ? 'bg-[#ff4d6d]/50' :
-                    toast.type === 'success' ? 'bg-[#4ade80]/50' :
-                    toast.type === 'warning' ? 'bg-[#fbbf24]/50' : 'bg-[#CAA4F7]/50'
-                  }`} style={{ animation: 'toastDrain 4s linear forwards' }} />
+                <div className="absolute bottom-0 left-0 right-0 h-px overflow-hidden">
+                  <div className="h-full origin-left bg-line-hover" style={{ animation: 'toastDrain 4s linear forwards' }} />
                 </div>
               )}
             </div>
@@ -898,3 +804,28 @@ export const EditorView: React.FC<EditorViewProps> = ({
     </div>
   );
 };
+
+/* ── Activity bar item ─────────────────────────────────────────────── */
+function ActivityItem({ label, title, active = false, expanded, onClick, badge, children }: {
+  label: string; title?: string; active?: boolean; expanded?: boolean; onClick: () => void; badge?: string; children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label={label}
+      title={title ?? label}
+      aria-expanded={expanded}
+      className={`relative flex items-center justify-center w-12 h-11 transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-accent ${
+        active ? 'text-fg' : 'text-fg-muted hover:text-fg-secondary'
+      }`}
+    >
+      {active && <span className="absolute left-0 top-2 bottom-2 w-0.5 bg-accent" aria-hidden="true" />}
+      {children}
+      {badge && (
+        <span className="absolute top-1.5 right-2 min-w-[16px] h-4 px-1 rounded-full bg-accent text-[#0A0A0F] text-[10px] leading-4 font-semibold text-center">
+          {badge}
+        </span>
+      )}
+    </button>
+  );
+}

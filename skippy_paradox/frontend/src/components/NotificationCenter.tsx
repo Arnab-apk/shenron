@@ -4,8 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { useTheme } from '../hooks/useTheme';
-import { Bell, X, AlertCircle, Info, CheckCircle } from 'lucide-react';
+import { Bell, X, AlertCircle, AlertTriangle, Info, CheckCircle2 } from 'lucide-react';
 
 export interface Notification {
   id: string;
@@ -33,17 +32,16 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   onMarkAsRead,
   onClearAll,
 }) => {
-  const { isDark } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const getIcon = (type: Notification['type']) => {
     switch (type) {
-      case 'success': return <CheckCircle size={18} className="text-green-400" />;
-      case 'error': return <AlertCircle size={18} className="text-red-400" />;
-      case 'warning': return <AlertCircle size={18} className="text-amber-400" />;
-      default: return <Info size={18} className="text-blue-400" />;
+      case 'success': return <CheckCircle2 size={14} className="shrink-0 text-success" />;
+      case 'error': return <AlertCircle size={14} className="shrink-0 text-danger" />;
+      case 'warning': return <AlertTriangle size={14} className="shrink-0 text-amber-400" />;
+      default: return <Info size={14} className="shrink-0 text-fg-secondary" />;
     }
   };
 
@@ -59,24 +57,20 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
     return `${days}d ago`;
   };
 
-  const bg = isDark ? 'bg-[#1a1a2e]' : 'bg-white';
-  const border = isDark ? 'border-slate-700/50' : 'border-slate-200';
-  const textP = isDark ? 'text-white' : 'text-slate-900';
-  const textM = isDark ? 'text-slate-400' : 'text-slate-500';
-
   return (
-    <div className="relative">
+    <div className="relative font-sans">
       {/* Bell Icon */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`relative p-2 rounded-lg transition-colors ${
-          isDark ? 'hover:bg-slate-700' : 'hover:bg-slate-100'
+        className={`relative h-7 w-7 flex items-center justify-center rounded-ctl text-fg-secondary hover:bg-white/5 hover:text-fg transition-colors outline-none focus-visible:ring-1 focus-visible:ring-accent/70 ${
+          isOpen ? 'bg-white/5 text-fg' : ''
         }`}
         aria-label="Notifications"
+        aria-expanded={isOpen}
       >
-        <Bell size={20} className={textM} />
+        <Bell size={16} />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center animate-pulse">
+          <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-[3px] rounded-full bg-accent text-[#0A0A0F] text-[9px] font-semibold leading-[14px] text-center tabular-nums">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -90,17 +84,21 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
             onClick={() => setIsOpen(false)}
           />
           <div
-            className={`absolute right-0 top-12 w-96 max-w-[calc(100vw-2rem)] ${bg} rounded-xl shadow-2xl border ${border} z-50 overflow-hidden animate-fade-in-up`}
+            className="absolute right-0 top-9 w-[360px] max-w-[calc(100vw-2rem)] rounded-panel border border-line bg-bg-elevated shadow-[0_12px_32px_rgba(0,0,0,0.45)] z-50 overflow-hidden animate-fade-in"
+            style={{ animationDuration: '120ms' }}
           >
             {/* Header */}
-            <div className={`flex items-center justify-between px-4 py-3 border-b ${border}`}>
-              <h3 className={`text-sm font-bold ${textP}`}>
-                Notifications {unreadCount > 0 && `(${unreadCount})`}
+            <div className="flex items-center h-10 px-3 border-b border-line">
+              <h3 className="text-[13px] font-medium text-fg">
+                Notifications
               </h3>
+              {unreadCount > 0 && (
+                <span className="ml-2 text-[11px] text-fg-muted tabular-nums">{unreadCount} unread</span>
+              )}
               {notifications.length > 0 && (
                 <button
                   onClick={onClearAll}
-                  className={`text-xs font-medium ${textM} hover:text-red-400 transition-colors`}
+                  className="ml-auto h-6 px-2 rounded-ctl text-[12px] text-fg-secondary hover:bg-white/5 hover:text-fg transition-colors"
                 >
                   Clear all
                 </button>
@@ -110,64 +108,59 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
             {/* Notifications List */}
             <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
               {notifications.length === 0 ? (
-                <div className={`flex flex-col items-center justify-center py-12 ${textM}`}>
-                  <Bell size={32} className="mb-2 opacity-40" />
-                  <p className="text-sm">No notifications</p>
+                <div className="flex flex-col items-center justify-center gap-2 py-10 text-fg-muted">
+                  <Bell size={16} />
+                  <p className="text-[12px]">No notifications</p>
                 </div>
               ) : (
                 notifications.map(notif => (
                   <div
                     key={notif.id}
-                    className={`relative px-4 py-3 border-b ${border} transition-colors ${
-                      notif.read
-                        ? isDark ? 'bg-transparent' : 'bg-transparent'
-                        : isDark ? 'bg-purple-500/5' : 'bg-purple-50/50'
-                    } ${isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'}`}
+                    className={`group relative flex gap-2.5 pl-4 pr-2 py-2.5 border-b border-line last:border-b-0 transition-colors hover:bg-white/[0.03] ${
+                      notif.read ? '' : 'bg-white/[0.02]'
+                    }`}
                     onClick={() => !notif.read && onMarkAsRead(notif.id)}
                   >
-                    <div className="flex gap-3">
-                      <div className="shrink-0 mt-0.5">
-                        {getIcon(notif.type)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2 mb-1">
-                          <h4 className={`text-sm font-semibold ${textP} truncate`}>
-                            {notif.title}
-                          </h4>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onDismiss(notif.id);
-                            }}
-                            className={`shrink-0 p-1 rounded hover:bg-red-500/10 ${textM} hover:text-red-400 transition-colors`}
-                          >
-                            <X size={14} />
-                          </button>
-                        </div>
-                        <p className={`text-xs ${textM} mb-2 leading-relaxed`}>
-                          {notif.message}
-                        </p>
-                        <div className="flex items-center justify-between">
-                          <span className={`text-[10px] ${textM}`}>
-                            {formatTime(notif.timestamp)}
-                          </span>
-                          {notif.action && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                notif.action!.onClick();
-                              }}
-                              className="text-xs font-medium text-purple-400 hover:text-purple-300 transition-colors"
-                            >
-                              {notif.action.label}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
                     {!notif.read && (
-                      <div className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-purple-500" />
+                      <span className="absolute left-1.5 top-[15px] w-1.5 h-1.5 rounded-full bg-accent" aria-label="Unread" role="img" />
                     )}
+                    <div className="mt-px">
+                      {getIcon(notif.type)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start gap-2">
+                        <h4 className={`flex-1 min-w-0 truncate text-[13px] leading-4 ${notif.read ? 'text-fg-secondary' : 'text-fg font-medium'}`}>
+                          {notif.title}
+                        </h4>
+                        <span className="shrink-0 text-[11px] leading-4 text-fg-muted tabular-nums">
+                          {formatTime(notif.timestamp)}
+                        </span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDismiss(notif.id);
+                          }}
+                          className="shrink-0 -mt-0.5 h-5 w-5 flex items-center justify-center rounded-[4px] text-fg-muted opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-white/10 hover:text-fg transition-opacity"
+                          aria-label={`Dismiss ${notif.title}`}
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                      <p className="mt-1 text-[12px] leading-[18px] text-fg-secondary">
+                        {notif.message}
+                      </p>
+                      {notif.action && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            notif.action!.onClick();
+                          }}
+                          className="mt-2 h-6 px-2 rounded-ctl border border-line bg-bg text-[12px] font-medium text-fg hover:border-line-hover transition-colors"
+                        >
+                          {notif.action.label}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))
               )}

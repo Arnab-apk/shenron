@@ -4,7 +4,7 @@
  */
 
 import { Component, ErrorInfo, ReactNode } from 'react';
-import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { AlertTriangle, RotateCw } from 'lucide-react';
 
 interface Props {
   children: ReactNode;
@@ -43,22 +43,25 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <div className="flex items-center justify-center h-full min-h-[400px] p-8">
-          <div className="text-center max-w-md">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/10 flex items-center justify-center">
-              <AlertTriangle size={32} className="text-red-500" />
+        <div role="alert" className="flex items-center justify-center h-full min-h-[320px] p-6 bg-bg font-sans">
+          <div className="w-full max-w-[400px] rounded-panel border border-line bg-bg-panel p-5">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle size={16} className="shrink-0 text-danger" />
+              <h2 className="text-[14px] font-medium text-fg">
+                Something went wrong
+              </h2>
             </div>
-            <h2 className="text-xl font-bold mb-2 text-slate-900 dark:text-white">
-              Something went wrong
-            </h2>
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-              {this.state.error?.message || 'An unexpected error occurred'}
+            <p className="text-[12px] leading-[18px] text-fg-secondary mb-3">
+              Shenron hit an unexpected error while rendering this view.
             </p>
+            <pre className="mb-4 max-h-32 overflow-auto rounded-ctl border border-line bg-bg px-2.5 py-2 font-mono text-[11px] leading-4 text-fg-secondary whitespace-pre-wrap break-words">
+              {this.state.error?.message || 'An unexpected error occurred'}
+            </pre>
             <button
               onClick={this.handleReset}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-medium transition-colors"
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-ctl bg-accent hover:bg-accent-hover text-[#0A0A0F] text-[12px] font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-1 focus-visible:ring-offset-bg"
             >
-              <RefreshCw size={16} />
+              <RotateCw size={14} />
               Try Again
             </button>
           </div>

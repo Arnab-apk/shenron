@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, Signal, X } from 'lucide-react';
-import { useTheme } from '../hooks/useTheme';
 import { CollabMember, CollabProvider } from '../services/collabService';
 import { VoiceManager } from '../services/voiceManager';
 
@@ -23,8 +22,6 @@ const VoiceLobbyPanel: React.FC<VoiceLobbyPanelProps> = ({
   onClose,
   voiceManager,
 }) => {
-  const { isDark } = useTheme();
-
   const [isJoining, setIsJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [localInVoice, setLocalInVoice] = useState(false);
@@ -270,23 +267,18 @@ const VoiceLobbyPanel: React.FC<VoiceLobbyPanelProps> = ({
 
   if (!isOpen) return null;
 
-  const panelBg = isDark ? 'bg-[#1E1E2A]' : 'bg-[#F0F2F6]';
-  const borderColor = isDark ? 'border-slate-700/50' : 'border-slate-300/50';
-  const textPrimary = isDark ? 'text-white' : 'text-slate-900';
-  const textMuted_ = isDark ? 'text-slate-400' : 'text-slate-500';
-  const cardBg = isDark ? 'bg-[#252542]/80' : 'bg-white/80';
-  const cardBorder = isDark ? 'border-slate-700/40' : 'border-slate-200';
+  const ctlBtn = 'flex-1 inline-flex h-8 items-center justify-center gap-1.5 rounded-ctl border border-line bg-bg-elevated text-[12px] font-medium transition-colors hover:border-line-hover';
 
   return (
-    <div className={`flex flex-col min-h-0 h-full w-full ${panelBg}`}>
+    <div className="flex h-full min-h-0 w-full flex-col bg-bg-panel font-sans text-fg">
       {/* Header */}
-      <div className={`flex items-center justify-between px-4 py-3 border-b ${borderColor} shrink-0`}>
+      <div className="flex h-10 shrink-0 items-center justify-between gap-2 border-b border-line px-3">
         <div className="flex items-center gap-2">
-          <Signal size={15} className="text-emerald-400" />
-          <h2 className={`text-xs font-bold uppercase tracking-wider ${textMuted_}`}>Voice</h2>
+          <Signal size={16} className="text-fg-secondary" />
+          <h2 className="text-[13px] font-semibold text-fg">Voice</h2>
           {localInVoice && (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 text-[10px] font-semibold">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="flex items-center gap-1.5 text-[11px] text-fg-secondary">
+              <span className="h-1.5 w-1.5 rounded-full bg-success" />
               Connected
             </span>
           )}
@@ -294,20 +286,22 @@ const VoiceLobbyPanel: React.FC<VoiceLobbyPanelProps> = ({
         {onClose && (
           <button
             onClick={onClose}
-            className={`p-1.5 rounded-md ${textMuted_} hover:text-red-400 hover:bg-red-500/10 transition-colors`}
+            aria-label="Close voice panel"
+            title="Close"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-ctl text-fg-secondary transition-colors hover:bg-white/5 hover:text-fg"
           >
-            <X size={16} />
+            <X size={14} />
           </button>
         )}
       </div>
 
       {/* Members list */}
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto scrollbar-hide p-3 space-y-1">
+      <div ref={scrollRef} className="scrollbar-hide min-h-0 flex-1 overflow-y-auto">
         {!localInVoice && voiceMembers.length === 0 && (
-          <div className={`flex flex-col items-center justify-center py-10 ${textMuted_} text-center`}>
-            <Signal size={32} className="opacity-30 mb-3" />
-            <p className="text-[12px] font-medium">No one is in voice</p>
-            <p className="text-[11px] opacity-70 mt-1">Join to start talking</p>
+          <div className="flex flex-col items-center justify-center py-10 text-center text-fg-muted">
+            <Signal size={16} className="mb-2 text-fg-secondary" />
+            <p className="text-[12px] font-medium text-fg-secondary">No one is in voice</p>
+            <p className="mt-0.5 text-[11px]">Join to start talking</p>
           </div>
         )}
 
@@ -318,60 +312,51 @@ const VoiceLobbyPanel: React.FC<VoiceLobbyPanelProps> = ({
           const vol = volumes[member.peerId] ?? 1;
 
           return (
-            <div
-              key={member.peerId}
-              className={`rounded-lg border p-2.5 transition-all duration-200 ${cardBg} ${cardBorder} ${
-                isSpeaking ? 'ring-2 ring-emerald-400/50 border-emerald-400/30' : ''
-              }`}
-            >
+            <div key={member.peerId} className="border-b border-line px-3 py-2">
               <div className="flex items-center gap-2.5">
                 {/* Avatar with speaking ring */}
-                <div className="relative shrink-0">
-                  <div
-                    className={`w-8 h-8 rounded-full text-[11px] font-bold text-white flex items-center justify-center transition-shadow duration-200 ${
-                      isSpeaking ? 'shadow-[0_0_12px_rgba(52,211,153,0.5)]' : ''
-                    }`}
-                    style={{ backgroundColor: member.color }}
-                  >
-                    {member.displayName.charAt(0).toUpperCase()}
-                  </div>
-                  {isSpeaking && (
-                    <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-[#1E1E2A] animate-pulse" />
-                  )}
+                <div
+                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white ring-2 ring-offset-2 ring-offset-bg-panel transition-shadow ${
+                    isSpeaking ? 'ring-success' : 'ring-transparent'
+                  }`}
+                  style={{ backgroundColor: member.color }}
+                >
+                  {member.displayName.charAt(0).toUpperCase()}
                 </div>
 
                 {/* Name + status */}
-                <div className="flex-1 min-w-0">
-                  <div className={`text-[12px] font-semibold truncate ${textPrimary}`}>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[13px] font-medium text-fg">
                     {member.displayName}{isSelf ? ' (You)' : ''}
                   </div>
-                  <div className={`text-[10px] ${isSpeaking ? 'text-emerald-400' : textMuted_}`}>
+                  <div className={`text-[11px] ${isSpeaking ? 'text-success' : 'text-fg-muted'}`}>
                     {isSpeaking ? 'Speaking' : voice.muted ? 'Muted' : 'Listening'}
                   </div>
                 </div>
 
                 {/* Status icons */}
-                <div className="flex items-center gap-1">
-                  {voice.muted && <MicOff size={12} className="text-red-400/70" />}
-                  {voice.deafened && <HeadphoneOff size={12} className="text-amber-400/70" />}
+                <div className="flex items-center gap-1 text-fg-secondary">
+                  {voice.muted && <MicOff size={14} className="text-danger" aria-label="Muted" />}
+                  {voice.deafened && <HeadphoneOff size={14} aria-label="Deafened" />}
                 </div>
               </div>
 
               {/* Per-user volume slider (only for remote peers when in voice) */}
               {localInVoice && !isSelf && (
-                <div className="flex items-center gap-2 mt-2 px-1">
-                  <Headphones size={11} className={textMuted_} />
+                <div className="mt-1.5 flex items-center gap-2 pl-[38px]">
+                  <Headphones size={14} className="text-fg-muted" />
                   <input
                     type="range"
                     min={0}
                     max={1}
                     step={0.01}
                     value={vol}
+                    aria-label={`Volume for ${member.displayName}`}
                     onChange={(e) => handleVolumeChange(member.peerId, parseFloat(e.target.value))}
-                    className="flex-1 h-1 accent-emerald-400 cursor-pointer"
-                    style={{ accentColor: '#34d399' }}
+                    className="h-1 flex-1 cursor-pointer"
+                    style={{ accentColor: 'var(--sh-accent)' }}
                   />
-                  <span className={`text-[10px] w-7 text-right ${textMuted_}`}>
+                  <span className="w-7 text-right font-mono text-[11px] text-fg-muted">
                     {Math.round(vol * 100)}
                   </span>
                 </div>
@@ -381,41 +366,32 @@ const VoiceLobbyPanel: React.FC<VoiceLobbyPanelProps> = ({
         })}
 
         {error && (
-          <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 mt-2">
-            <p className="text-[11px] text-red-400">{error}</p>
-          </div>
+          <p role="alert" className="px-3 py-2 text-[12px] text-danger">{error}</p>
         )}
 
         {!canUseVoice && !localInVoice && (
-          <p className={`text-[10px] mt-2 px-1 ${textMuted_}`}>
+          <p className="px-3 py-2 text-[11px] text-fg-muted">
             Voice is available after the room is connected.
           </p>
         )}
       </div>
 
       {/* Bottom control bar */}
-      <div className={`shrink-0 border-t ${borderColor} px-4 py-3`}>
+      <div className="shrink-0 border-t border-line p-3">
         {!localInVoice ? (
           <button
             disabled={!canUseVoice || isJoining}
             onClick={handleJoinVoice}
-            className={`w-full py-2 rounded-lg text-[12px] font-semibold transition-all ${
-              !canUseVoice || isJoining
-                ? 'opacity-40 cursor-not-allowed bg-slate-500/20 text-slate-400'
-                : 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 active:scale-[0.98]'
-            }`}
+            className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-ctl bg-accent px-3 text-[12px] font-medium text-[#0A0A0F] transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40"
           >
+            <Mic size={14} />
             {isJoining ? 'Joining...' : 'Join Voice'}
           </button>
         ) : (
           <div className="flex items-center justify-center gap-2">
             <button
               onClick={handleToggleMute}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-[12px] font-semibold transition-all active:scale-[0.97] ${
-                localMuted
-                  ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
-                  : `${isDark ? 'bg-slate-700/50 text-slate-300' : 'bg-slate-200 text-slate-600'} hover:bg-slate-600/50`
-              }`}
+              className={`${ctlBtn} ${localMuted ? 'text-danger' : 'text-fg'}`}
               title={localMuted ? 'Unmute' : 'Mute'}
             >
               {localMuted ? <MicOff size={14} /> : <Mic size={14} />}
@@ -424,11 +400,7 @@ const VoiceLobbyPanel: React.FC<VoiceLobbyPanelProps> = ({
 
             <button
               onClick={handleToggleDeafen}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-[12px] font-semibold transition-all active:scale-[0.97] ${
-                localDeafened
-                  ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30'
-                  : `${isDark ? 'bg-slate-700/50 text-slate-300' : 'bg-slate-200 text-slate-600'} hover:bg-slate-600/50`
-              }`}
+              className={`${ctlBtn} ${localDeafened ? 'text-danger' : 'text-fg'}`}
               title={localDeafened ? 'Undeafen' : 'Deafen'}
             >
               {localDeafened ? <HeadphoneOff size={14} /> : <Headphones size={14} />}
@@ -437,8 +409,9 @@ const VoiceLobbyPanel: React.FC<VoiceLobbyPanelProps> = ({
 
             <button
               onClick={handleLeaveVoice}
-              className="py-2 px-3 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all active:scale-[0.97]"
+              className="inline-flex h-8 items-center justify-center rounded-ctl border border-line bg-bg-elevated px-3 text-danger transition-colors hover:border-line-hover"
               title="Disconnect"
+              aria-label="Disconnect"
             >
               <PhoneOff size={14} />
             </button>

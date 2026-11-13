@@ -62,7 +62,7 @@ try {
   assert.equal((await request('/terminals')).terminals[0].alive,true);
   await page.getByRole('button',{name:'Open Terminal',exact:true}).click();
   await page.getByLabel('Workspace terminal input').waitFor({state:'visible'});
-  await page.getByLabel('Ask Skippy').filter({visible:true}).fill('Make the requested test edit.');
+  await page.getByLabel('Ask Shenron').filter({visible:true}).fill('Make the requested test edit.');
   await page.getByRole('button',{name:'Run harness',exact:true}).filter({visible:true}).click();
   await page.waitForFunction(()=>JSON.parse(localStorage.getItem('codecollab-v2-files')||'[]').some(f=>f.content.includes('AI change verified')),{},{timeout:15000});
   await page.getByRole('button',{name:'Run harness',exact:true}).filter({visible:true}).waitFor();

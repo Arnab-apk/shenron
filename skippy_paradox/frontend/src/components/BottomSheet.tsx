@@ -3,8 +3,7 @@
  * Smooth drag-to-dismiss with spring physics.
  */
 
-import React, { useState, useRef, useEffect } from 'react';
-import { useTheme } from '../hooks/useTheme';
+import React, { useState, useRef, useEffect, useId } from 'react';
 import { X } from 'lucide-react';
 
 interface BottomSheetProps {
@@ -22,11 +21,11 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
   children,
   height = 'half',
 }) => {
-  const { isDark } = useTheme();
   const [dragY, setDragY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const startY = useRef(0);
   const sheetRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
 
   const heightMap = {
     half: 'h-[60vh]',
@@ -55,7 +54,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
     if (!isDragging) return;
     const currentY = e.touches[0].clientY;
     const diff = currentY - startY.current;
-    
+
     // Only allow dragging down
     if (diff > 0) {
       setDragY(diff);
@@ -64,7 +63,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
 
   const handleTouchEnd = () => {
     setIsDragging(false);
-    
+
     // Close if dragged more than 100px
     if (dragY > 100) {
       onClose();
@@ -79,16 +78,17 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
     <div className="fixed inset-0 z-[100] md:hidden">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"
+        className="absolute inset-0 bg-black/60 animate-fade-in"
         onClick={onClose}
       />
 
       {/* Sheet */}
       <div
         ref={sheetRef}
-        className={`absolute inset-x-0 bottom-0 ${heightMap[height]} rounded-t-3xl ${
-          isDark ? 'bg-[#1a1a2e]' : 'bg-white'
-        } shadow-2xl transition-transform duration-300 ease-out ${
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className={`absolute inset-x-0 bottom-0 flex flex-col ${heightMap[height]} rounded-t-panel border-t border-line bg-bg-panel font-sans text-fg shadow-subtle transition-transform duration-300 ease-out ${
           isDragging ? '' : 'animate-slide-up'
         }`}
         style={{
@@ -99,33 +99,27 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
         onTouchEnd={handleTouchEnd}
       >
         {/* Drag handle */}
-        <div className="flex justify-center pt-3 pb-2">
-          <div className={`w-12 h-1.5 rounded-full ${
-            isDark ? 'bg-slate-700' : 'bg-slate-300'
-          }`} />
+        <div className="flex shrink-0 justify-center pb-1 pt-2">
+          <div className="h-1 w-9 rounded-full bg-line-hover" />
         </div>
 
         {/* Header */}
-        <div className={`flex items-center justify-between px-4 py-3 border-b ${
-          isDark ? 'border-slate-700/50' : 'border-slate-200'
-        }`}>
-          <h2 className={`text-lg font-bold ${
-            isDark ? 'text-white' : 'text-slate-900'
-          }`}>
+        <div className="flex shrink-0 items-center justify-between border-b border-line px-3 py-2">
+          <h2 id={titleId} className="text-[13px] font-semibold text-fg">
             {title}
           </h2>
           <button
+            type="button"
             onClick={onClose}
-            className={`p-2 rounded-lg transition-colors ${
-              isDark ? 'hover:bg-slate-700' : 'hover:bg-slate-100'
-            }`}
+            aria-label="Close"
+            className="flex h-8 w-8 items-center justify-center rounded-ctl text-fg-secondary transition-colors hover:bg-white/5 hover:text-fg"
           >
-            <X size={20} className={isDark ? 'text-slate-400' : 'text-slate-500'} />
+            <X size={16} />
           </button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
+        <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
           {children}
         </div>
       </div>

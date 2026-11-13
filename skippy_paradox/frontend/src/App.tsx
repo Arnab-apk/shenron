@@ -70,6 +70,7 @@ export const App: React.FC = () => {
   const [showGitHubModal, setShowGitHubModal] = useState(false);
   const [showGitHubPushModal, setShowGitHubPushModal] = useState(false);
   const [showCollabModal, setShowCollabModal] = useState(false);
+  const [collabTab, setCollabTab] = useState<'create' | 'join'>('create');
   const [showCommandPalette, setShowCommandPalette] = useState(false);
 
   // ─── Collab Room ─────────────────────────────────────────────────────
@@ -79,7 +80,7 @@ export const App: React.FC = () => {
 
   // ─── File Handlers ───────────────────────────────────────────────────
   const handleFileCreate = useCallback((name?: string, content: string = '', language?: string) => {
-    if (workspace.project && collab.status === 'connected' && !collab.isHost) { workspace.setError('Only the room host can add project files. Ask Skippy to create shared files, or ask the host to add them.'); return; }
+    if (workspace.project && collab.status === 'connected' && !collab.isHost) { workspace.setError('Only the room host can add project files. Ask the Shenron agent to create shared files, or ask the host to add them.'); return; }
     const fileName = name?.trim() || `Snippet-${files.length + 1}`;
     const detectedLang = language || detectLanguage(fileName, content) || '';
     const newId = `file-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -425,7 +426,7 @@ export const App: React.FC = () => {
       id: 'collab',
       label: 'Start Collaboration',
       icon: <Users size={16} />,
-      action: () => setShowCollabModal(true),
+      action: () => { setCollabTab('create'); setShowCollabModal(true); },
       keywords: ['collab', 'collaborate', 'room', 'share'],
     },
     {
@@ -449,7 +450,7 @@ export const App: React.FC = () => {
   return (
     <ThemeContext.Provider value={themeCtx}>
       <ErrorBoundary>
-        <div className="min-h-screen font-sans flex flex-col relative overflow-hidden">
+        <div className="min-h-screen bg-bg text-fg font-sans flex flex-col relative overflow-hidden">
           <EditorView
             workspace={workspace}
             files={files}
@@ -464,7 +465,9 @@ export const App: React.FC = () => {
             onLanguageChange={handleLanguageChange}
             onOpenGitHub={() => setShowGitHubModal(true)}
             onOpenGitHubPush={() => setShowGitHubPushModal(true)}
-            onOpenCollab={() => setShowCollabModal(true)}
+            onOpenCollab={() => { setCollabTab('create'); setShowCollabModal(true); }}
+            onJoinCollab={() => { setCollabTab('join'); setShowCollabModal(true); }}
+            onOpenCommandPalette={() => setShowCommandPalette(true)}
             onRepoDelete={handleRepoDelete}
             collab={collab}
           />
@@ -485,6 +488,7 @@ export const App: React.FC = () => {
           />
           <CollabRoomModal
             isOpen={showCollabModal}
+            initialTab={collabTab}
             onClose={() => { setShowCollabModal(false); collab.clearJoinError(); }}
             onCreateRoom={(name, id) => { collab.createRoom(name, id); setShowCollabModal(false); soundEffects.success(); }}
             onJoinRoom={(name, id) => { collab.joinRoom(name, id); }}
