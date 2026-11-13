@@ -1,8 +1,29 @@
-@import url('https://fonts.googleapis.com/css2?family=Nova+Mono&family=Syne+Mono&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ─── Shenron design tokens ──────────────────────────────────────────── */
+
+:root {
+  --sh-bg: #0A0A0F;
+  --sh-panel: #111118;
+  --sh-elevated: #16161F;
+  --sh-border: #23232E;
+  --sh-border-hover: #2E2E3A;
+  --sh-text: #E6E6EB;
+  --sh-text-secondary: #8B8B99;
+  --sh-text-muted: #5C5C6B;
+  --sh-accent: #56C0F2;
+  --sh-accent-hover: #7ACFF5;
+  --sh-danger: #F26B6B;
+  --sh-success: #4ADE80;
+  --sh-radius-ctl: 6px;
+  --sh-radius-panel: 10px;
+  --sh-shadow: 0 1px 2px rgba(0, 0, 0, .4);
+  --sh-font-ui: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --sh-font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+  color-scheme: dark;
+}
 
 /* ─── Base ───────────────────────────────────────────────────────────── */
 
@@ -11,32 +32,24 @@ html {
   overflow-x: hidden;
 }
 
-
-.nova-font {
-  font-family: 'Nova Mono', monospace !important;
-}
-
-.syne-font {
-  font-family: 'Syne Mono', monospace !important;
+/* Legacy display-font helpers now resolve to the Shenron type scale */
+.nova-font,
+.syne-font,
+.quantico-font,
+.kode-font,
+.space-font {
+  font-family: var(--sh-font-ui) !important;
 }
 
 .jetbrains-font {
-  font-family: 'JetBrains Mono', monospace !important;
-}
-
-.quantico-font {
-  font-family: 'Quantico', sans-serif !important;
-}
-
-.kode-font {
-  font-family: 'Kode Mono', monospace !important;
-}
-
-.space-font {
-  font-family: 'Space Mono', monospace !important;
+  font-family: var(--sh-font-mono) !important;
 }
 
 body {
+  font-family: var(--sh-font-ui);
+  font-size: 13px;
+  background-color: var(--sh-bg);
+  color: var(--sh-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
@@ -55,28 +68,28 @@ body {
 }
 
 *:focus-visible {
-  outline: 2px solid rgba(202, 164, 247, 0.6);
+  outline: 2px solid rgba(86, 192, 242, 0.6);
   outline-offset: 2px;
   border-radius: 4px;
 }
 
 /* Button focus styles */
 button:focus-visible {
-  outline: 2px solid rgba(202, 164, 247, 0.6);
+  outline: 2px solid rgba(86, 192, 242, 0.6);
   outline-offset: 2px;
 }
 
 /* Input focus styles */
 input:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid rgba(202, 164, 247, 0.6);
+  outline: 2px solid rgba(86, 192, 242, 0.6);
   outline-offset: 0px;
 }
 
 /* Dark mode defaults */
 html.dark body {
-  background-color: #0b1120;
-  color: #e2e8f0;
+  background-color: var(--sh-bg);
+  color: var(--sh-text);
 }
 
 /* Light mode */
@@ -93,16 +106,16 @@ html.light body {
 }
 
 html.dark ::-webkit-scrollbar-track {
-  background: #0f172a;
+  background: transparent;
 }
 
 html.dark ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: var(--sh-border-hover);
   border-radius: 4px;
 }
 
 html.dark ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #3A3A48;
 }
 
 html.light ::-webkit-scrollbar-track {
@@ -317,12 +330,12 @@ textarea:focus {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: var(--sh-border-hover);
   border-radius: 3px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #3A3A48;
 }
 
 html.light .custom-scrollbar::-webkit-scrollbar-thumb {
@@ -372,13 +385,13 @@ html.light .custom-scrollbar::-webkit-scrollbar-thumb:hover {
 .ai-prose em { font-style: italic; }
 
 .ai-prose a {
-  color: #CAA4F7;
+  color: var(--sh-accent);
   text-decoration: none;
 }
 .ai-prose a:hover { text-decoration: underline; }
 
 .ai-prose blockquote {
-  border-left: 3px solid #CAA4F7;
+  border-left: 2px solid var(--sh-border-hover);
   padding: 0.3em 0.8em;
   margin: 0.4em 0;
   opacity: 0.85;
@@ -455,7 +468,7 @@ html.light .ai-prose code:not(pre code) {
   font-size: 11px;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
   line-height: 1.5;
-  color: #e2e8f0;
+  color: var(--sh-text);
   overflow-x: auto;
   white-space: pre;
 }

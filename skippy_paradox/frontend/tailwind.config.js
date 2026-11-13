@@ -8,10 +8,38 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['JetBrains Mono', 'Fira Code', 'monospace'],
-        mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
+        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        mono: ['JetBrains Mono', 'Fira Code', 'ui-monospace', 'monospace'],
+      },
+      borderRadius: {
+        ctl: '6px',
+        panel: '10px',
+      },
+      boxShadow: {
+        subtle: '0 1px 2px rgba(0,0,0,.4)',
       },
       colors: {
+        // Shenron design tokens (backed by CSS variables in src/index.css)
+        bg: {
+          DEFAULT: 'var(--sh-bg)',
+          panel: 'var(--sh-panel)',
+          elevated: 'var(--sh-elevated)',
+        },
+        line: {
+          DEFAULT: 'var(--sh-border)',
+          hover: 'var(--sh-border-hover)',
+        },
+        fg: {
+          DEFAULT: 'var(--sh-text)',
+          secondary: 'var(--sh-text-secondary)',
+          muted: 'var(--sh-text-muted)',
+        },
+        accent: {
+          DEFAULT: 'var(--sh-accent)',
+          hover: 'var(--sh-accent-hover)',
+        },
+        danger: 'var(--sh-danger)',
+        success: 'var(--sh-success)',
         slate: {
           750: '#2d3748',
           850: '#1a202c',
