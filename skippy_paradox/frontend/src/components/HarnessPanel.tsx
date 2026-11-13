@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Bot, Send, Square, RefreshCw, Settings, FileCode, Download } from 'lucide-react';
-import { useTheme } from '../hooks/useTheme';
+import { Bot, Send, Square, Settings, FileCode, Download, Loader2, ShieldAlert } from 'lucide-react';
 import { StoredFile } from '../services/storageService';
 import { CollabProvider, SharedFileInfo } from '../services/collabService';
 import { approveCommand, cancelRun, HarnessEvent, hydrateFiles, loadModels, streamHarness } from '../services/harnessService';
 import { DEFAULT_OPENROUTER_KEY } from '../services/harnessDefaults';
 import { detectLanguage } from '../utils/detectLanguage';
+import { AgentHeader, RoleRow, ToolRow, btnGhost, btnPrimary, btnSecondary, fieldCls, iconBtn } from './agent/ui';
+import { ProviderPicker } from './agent/ProviderPicker';
 
 interface Props {
   beginAgent?: () => Promise<() => Promise<void>>;
@@ -19,7 +20,6 @@ interface Props {
 }
 
 export const HarnessPanel: React.FC<Props> = ({ allFiles = [], onAgentFileCreate, provider: room, sharedFiles = [], beginAgent }) => {
-  const { isDark } = useTheme();
   const DEFAULT_KEY = DEFAULT_OPENROUTER_KEY;
   const [provider, setProvider] = useState<'ollama' | 'openrouter'>(() => localStorage.getItem('harness-provider') === 'ollama' ? 'ollama' : 'openrouter');
   const [model, setModel] = useState(() => localStorage.getItem('harness-model-openrouter') || 'nvidia/nemotron-3.5-lightning:free');
@@ -177,42 +177,40 @@ export const HarnessPanel: React.FC<Props> = ({ allFiles = [], onAgentFileCreate
     const anchor = document.createElement('a'); anchor.href = url; anchor.download = (event.path || 'proposed.txt').split('/').pop()!; anchor.click(); URL.revokeObjectURL(url);
   }
 
-  const field = `w-full rounded-lg border px-2 py-2 text-xs outline-none focus:border-purple-400 ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`;
-  return <section className={`flex h-full min-h-0 flex-col ${isDark ? 'bg-[#181821] text-slate-200' : 'bg-slate-50 text-slate-800'}`}>
-    <header className="flex items-center justify-between border-b border-slate-500/20 p-3">
-      <div className="flex items-center gap-2"><Bot size={19} className="text-purple-400" /><strong className="text-sm">Skippy Harness</strong><span className="text-[10px] text-slate-400">{room?.status === 'connected' ? 'Shared workspace' : 'Local workspace'}</span></div>
-      <button aria-label="Harness settings" onClick={() => setSettings(!settings)} className="p-1 hover:text-purple-400"><Settings size={16} /></button>
-    </header>
-    <div className="space-y-2 border-b border-slate-500/20 p-3">
-      <div className="flex gap-2">
-        <select aria-label="AI provider" disabled={busy} className={field} value={provider} onChange={e => setProvider(e.target.value as any)}>
-          <option value="openrouter">OpenRouter · cloud</option>
-          <option value="ollama">Ollama · local</option>
-        </select>
-        <button aria-label="Refresh models" disabled={busy || loadingModels} onClick={() => void refreshModels()} className="p-2 text-purple-400">
-          <RefreshCw size={16} className={loadingModels ? 'animate-spin' : ''} />
-        </button>
-      </div>
-      <select aria-label="AI model" disabled={busy || loadingModels} className={field} value={model} onChange={e => { setModel(e.target.value); localStorage.setItem(`harness-model-${provider}`, e.target.value); }}>
-        <option value="">{loadingModels ? 'Loading models…' : 'Select a model'}</option>
-        {models.length > 0 ? (
-          models.map(m => <option key={m} value={m}>{m}</option>)
-        ) : (
-          <>
-            <option value="nvidia/nemotron-3.5-lightning:free">nvidia/nemotron-3.5-lightning:free</option>
-            <option value="nvidia/nemotron-3-super-120b-a12b:free">nvidia/nemotron-3-super-120b-a12b:free</option>
-            <option value="nvidia/nemotron-3-ultra-550b-a55b:free">nvidia/nemotron-3-ultra-550b-a55b:free</option>
-            <option value="qwen/qwen-2.5-coder-32b-instruct:free">qwen/qwen-2.5-coder-32b-instruct:free</option>
-          </>
-        )}
-      </select>
+  const fallbackModels = [
+    'nvidia/nemotron-3.5-lightning:free',
+    'nvidia/nemotron-3-super-120b-a12b:free',
+    'nvidia/nemotron-3-ultra-550b-a55b:free',
+    'qwen/qwen-2.5-coder-32b-instruct:free',
+  ];
+  const modelOptions = (models.length > 0 ? models : fallbackModels).map(m => ({ value: m, label: m }));
+
+  return <section className="flex h-full min-h-0 flex-col bg-bg-panel font-sans text-fg">
+    <AgentHeader subtitle={room?.status === 'connected' ? 'Shared workspace' : 'Local workspace'}>
+      <button aria-label="Harness settings" title="Harness settings" onClick={() => setSettings(!settings)} className={`${iconBtn} ${settings ? 'bg-white/5 text-fg' : ''}`}><Settings size={14} /></button>
+    </AgentHeader>
+    <div className="shrink-0 space-y-2 border-b border-line p-3">
+      <ProviderPicker
+        provider={provider}
+        providers={[{ value: 'openrouter', label: 'OpenRouter · cloud' }, { value: 'ollama', label: 'Ollama · local' }]}
+        onProviderChange={value => setProvider(value as any)}
+        providerDisabled={busy}
+        model={model}
+        models={modelOptions}
+        modelPlaceholder={loadingModels ? 'Loading models…' : 'Select a model'}
+        onModelChange={value => { setModel(value); localStorage.setItem(`harness-model-${provider}`, value); }}
+        modelDisabled={busy || loadingModels}
+        onRefresh={() => void refreshModels()}
+        refreshing={loadingModels}
+        refreshDisabled={busy || loadingModels}
+      />
       {(settings || provider === 'openrouter') && <div className="space-y-2">
         {provider === 'openrouter' && (
           <input
             aria-label="OpenRouter API key"
             type="password"
             placeholder="OpenRouter API key"
-            className={field}
+            className={fieldCls}
             value={apiKey}
             onChange={e => {
               setApiKey(e.target.value);
@@ -221,28 +219,65 @@ export const HarnessPanel: React.FC<Props> = ({ allFiles = [], onAgentFileCreate
             }}
           />
         )}
-        <input aria-label="Server access token" type="password" placeholder="Server access token (for remote access)" className={field} value={accessToken} onChange={e => { setAccessToken(e.target.value); sessionStorage.setItem('harness-access-token', e.target.value); }} />
-        <p className="text-[10px] text-slate-400">Keys stay in this browser session. Nemotron free model works automatically with your OpenRouter key.</p>
+        <input aria-label="Server access token" type="password" placeholder="Server access token (for remote access)" className={fieldCls} value={accessToken} onChange={e => { setAccessToken(e.target.value); sessionStorage.setItem('harness-access-token', e.target.value); }} />
+        <p className="text-[11px] leading-4 text-fg-muted">Keys stay in this browser session. Nemotron free model works automatically with your OpenRouter key.</p>
       </div>}
     </div>
-    <div role="log" aria-label="Harness activity" className="min-h-0 flex-1 overflow-auto p-3 space-y-3">
-      {!events.length && <div className="py-6 text-sm leading-6 text-slate-400"><Bot size={30} className="mb-3 text-purple-400" /><p>Build together with Skippy.</p><p className="mt-2 text-xs">Ask the harness to inspect files, implement a feature, or fix a bug. In a room, both collaborators see its work on shared files.</p><button className="mt-4 rounded-lg border border-purple-400/30 px-3 py-2 text-xs text-purple-400" onClick={() => setPrompt('Inspect the workspace and summarize its architecture. Then suggest the most useful next improvement.')}>Explore this project</button></div>}
-      {events.map((e, i) => <div key={e.id || i} className={`rounded-lg p-2.5 text-xs leading-5 ${e.type === 'user' ? 'bg-purple-500/15' : e.type === 'error' ? 'bg-red-500/10 text-red-400' : 'bg-slate-500/5'}`}>
-        {e.author && <div className="mb-1 text-[10px] text-purple-400">{e.author}</div>}
-        {e.type === 'tool' ? <details open={e.status === 'running'}><summary className="cursor-pointer font-mono">{e.status === 'running' ? 'Working' : e.status === 'failed' ? 'Failed' : 'Done'} · {e.name}</summary><pre className="whitespace-pre-wrap break-all text-[10px] max-h-52 overflow-auto">{e.result || e.arguments}</pre></details>
-          : <div className="whitespace-pre-wrap break-words">{e.type === 'file' && <FileCode size={13} className="inline mr-1" />}{e.content || e.message || (e.type === 'done' ? 'Run complete.' : '')}</div>}
-      </div>)}
-      {conflicts.map((e, i) => <button key={i} onClick={() => download(e)} className="flex gap-2 text-xs text-amber-400"><Download size={14} />Download proposed {e.path}</button>)}
+    <div role="log" aria-label="Harness activity" className="min-h-0 flex-1 overflow-auto">
+      {!events.length && <div className="px-3 py-6">
+        <Bot size={16} className="mb-2 text-fg-secondary" />
+        <p className="text-[13px] font-medium text-fg">Build together with Shenron.</p>
+        <p className="mt-1 text-[12px] leading-5 text-fg-secondary">Ask the agent to inspect files, implement a feature, or fix a bug. In a room, both collaborators see its work on shared files.</p>
+        <button className={`${btnSecondary} mt-3`} onClick={() => setPrompt('Inspect the workspace and summarize its architecture. Then suggest the most useful next improvement.')}>Explore this project</button>
+      </div>}
+      {events.map((e, i) => {
+        const key = e.id || i;
+        if (e.type === 'tool') return <div key={key} className="border-b border-line px-3 py-1.5">
+          {e.author && <div className="mb-1 text-[11px] text-fg-muted">{e.author}</div>}
+          <ToolRow
+            status={e.status === 'running' ? 'running' : e.status === 'failed' ? 'error' : 'ok'}
+            name={e.name}
+            meta={e.status === 'running' ? 'Working' : e.status === 'failed' ? 'Failed' : 'Done'}
+            detail={e.result || e.arguments}
+            defaultOpen={e.status === 'running'}
+          />
+        </div>;
+        if (e.type === 'status' || e.type === 'done') return <div key={key} className="flex items-center gap-2 border-b border-line px-3 py-2 text-[12px] text-fg-muted">
+          {e.type === 'status' && <Loader2 size={14} className="shrink-0 animate-spin" />}
+          <span className="min-w-0 whitespace-pre-wrap break-words">{e.content || e.message || (e.type === 'done' ? 'Run complete.' : '')}</span>
+        </div>;
+        if (e.type === 'file') return <div key={key} className="flex items-center gap-2 border-b border-line px-3 py-2 text-[12px] text-fg-secondary">
+          <FileCode size={14} className="shrink-0" />
+          <span className="min-w-0 break-words font-mono text-[11px]">{e.content || e.message}</span>
+          {e.author && <span className="ml-auto shrink-0 text-[11px] text-fg-muted">{e.author}</span>}
+        </div>;
+        const isUser = e.type === 'user';
+        const isError = e.type === 'error';
+        return <RoleRow key={key} role={e.author || (isUser ? 'You' : isError ? 'Error' : 'Shenron')} tone={isUser ? 'user' : isError ? 'error' : 'default'}>
+          <div className="whitespace-pre-wrap break-words">{e.content || e.message || ''}</div>
+        </RoleRow>;
+      })}
+      {conflicts.length > 0 && <div className="space-y-1 border-b border-line px-3 py-2">
+        {conflicts.map((e, i) => <button key={i} onClick={() => download(e)} className={`${btnGhost} text-danger`}><Download size={14} />Download proposed {e.path}</button>)}
+      </div>}
+      {approval && <div className="border-b border-line px-3 py-2.5">
+        <div className="mb-1 flex items-center gap-2 text-[11px] font-medium text-fg-secondary"><ShieldAlert size={14} className="text-fg-secondary" />Command approval</div>
+        <pre className="mb-1.5 whitespace-pre-wrap break-all rounded-ctl border border-line bg-bg px-2 py-1.5 font-mono text-[11px] text-fg">{approval}</pre>
+        <p className="mb-2 text-[11px] text-fg-muted">This command runs on the server with its user's permissions.</p>
+        <div className="flex gap-2">
+          <button onClick={() => void decide(true)} className={btnPrimary}>Run command</button>
+          <button onClick={() => void decide(false)} className={btnSecondary}>Deny</button>
+        </div>
+      </div>}
       <div ref={bottomRef} />
     </div>
-    {approval && <div className="m-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs"><strong>Command approval</strong><pre className="my-2 whitespace-pre-wrap break-all">{approval}</pre><p className="mb-2 text-[10px]">This command runs on the server with its user's permissions.</p><div className="flex gap-2"><button onClick={() => void decide(true)} className="rounded bg-amber-500 px-3 py-1 text-black">Run command</button><button onClick={() => void decide(false)} className="rounded border border-slate-500 px-3 py-1">Deny</button></div></div>}
-    {error && <p role="alert" className="px-3 pb-2 text-xs text-red-400">{error}</p>}
-    {remoteBusy && <p className="px-3 pb-2 text-xs text-purple-400">Your collaborator is running the harness…</p>}
-    <form className="border-t border-slate-500/20 p-3" onSubmit={e => { e.preventDefault(); void start(); }}>
-      <textarea aria-label="Ask Skippy" className={`${field} min-h-20 resize-none`} placeholder="Ask Skippy to build, fix, or explain…" value={prompt} onChange={e => setPrompt(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void start(); } }} />
-      <div className="mt-2 flex items-center justify-between"><button type="button" disabled={busy || remoteBusy} className="text-[10px] text-slate-400" onClick={() => { setHistory([]); setEvents([]); }}>New conversation</button>
-        {busy ? <button type="button" onClick={() => { abortRef.current?.abort(); if (runRef.current) void cancelRun(runRef.current.id, runRef.current.token); }} className="flex items-center gap-1 rounded-lg bg-red-500/15 px-3 py-2 text-xs text-red-400"><Square size={12} />Stop</button>
-        : <button disabled={!prompt.trim() || !model || remoteBusy} className="flex items-center gap-2 rounded-lg bg-purple-500 px-3 py-2 text-xs font-bold text-white disabled:opacity-40"><Send size={13} />Run harness</button>}</div>
+    {error && <p role="alert" className="shrink-0 border-t border-line px-3 py-2 text-[12px] text-danger">{error}</p>}
+    {remoteBusy && <p className="flex shrink-0 items-center gap-2 border-t border-line px-3 py-2 text-[12px] text-fg-secondary"><Loader2 size={14} className="animate-spin" />Your collaborator is running the harness…</p>}
+    <form className="shrink-0 border-t border-line p-3" onSubmit={e => { e.preventDefault(); void start(); }}>
+      <textarea aria-label="Ask Shenron" className="min-h-20 w-full resize-none rounded-ctl border border-line bg-bg px-2.5 py-2 text-[13px] leading-5 text-fg outline-none placeholder:text-fg-muted focus:border-accent" placeholder="Ask Shenron to build, fix, or explain…" value={prompt} onChange={e => setPrompt(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void start(); } }} />
+      <div className="mt-2 flex items-center justify-between"><button type="button" disabled={busy || remoteBusy} className={`${btnGhost} -ml-2`} onClick={() => { setHistory([]); setEvents([]); }}>New conversation</button>
+        {busy ? <button type="button" onClick={() => { abortRef.current?.abort(); if (runRef.current) void cancelRun(runRef.current.id, runRef.current.token); }} className={`${btnSecondary} text-danger`}><Square size={14} />Stop</button>
+        : <button disabled={!prompt.trim() || !model || remoteBusy} className={btnPrimary}><Send size={14} />Run harness</button>}</div>
     </form>
   </section>;
 };

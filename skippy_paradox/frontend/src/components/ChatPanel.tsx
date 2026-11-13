@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, MessageSquare } from 'lucide-react';
-import { useTheme } from '../hooks/useTheme';
+import { Send, MessageSquare, X } from 'lucide-react';
 import { ChatMessage } from '../services/collabService';
 
 interface ChatPanelProps {
@@ -22,7 +21,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   canSend = true,
   onClose,
 }) => {
-  const { isDark } = useTheme();
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -62,81 +60,49 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   const formatTime = (ts: number) =>
     new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-  const bg = isDark ? 'bg-[#1E1E2A]' : 'bg-[#F0F2F6]';
-  const border = isDark ? 'border-slate-700/40' : 'border-slate-300/40';
-  const textPrimary = isDark ? 'text-white' : 'text-slate-900';
-  const textMuted = isDark ? 'text-slate-400' : 'text-slate-500';
-  const inputBg = isDark
-    ? 'bg-[#232340] border-slate-600/40'
-    : 'bg-white border-slate-300';
-
   return (
-    <div className={`flex flex-col h-full w-full ${bg} overflow-hidden`}>
+    <div className="flex h-full w-full flex-col overflow-hidden bg-bg-panel font-sans text-fg">
       {/* Header */}
-      <div className={`flex items-center justify-between px-4 py-2.5 border-b ${border} shrink-0`}>
+      <div className="flex h-10 shrink-0 items-center justify-between gap-2 border-b border-line px-3">
         <div className="flex items-center gap-2">
-          <MessageSquare size={14} className="text-[#CAA4F7]" />
-          <span className={`text-[11px] font-bold uppercase tracking-wider ${textMuted}`}>
-            Room Chat
-          </span>
+          <MessageSquare size={16} className="text-fg-secondary" />
+          <span className="text-[13px] font-semibold text-fg">Room Chat</span>
         </div>
         {onClose && (
           <button
             onClick={onClose}
-            className={`p-1 rounded-md ${textMuted} hover:text-red-400 hover:bg-red-500/10 transition-colors`}
+            aria-label="Close chat"
+            title="Close chat"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-ctl text-fg-secondary transition-colors hover:bg-white/5 hover:text-fg"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18 6 6 18" /><path d="m6 6 12 12" />
-            </svg>
+            <X size={14} />
           </button>
         )}
       </div>
 
       {/* Messages */}
-      <div className="flex-1 min-h-0 overflow-hidden">
-        <div
-          ref={scrollContainerRef}
-          className="h-full overflow-y-auto scrollbar-hide p-3 space-y-2.5"
-        >
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <div ref={scrollContainerRef} className="scrollbar-hide h-full overflow-y-auto">
           {messages.length === 0 && (
-            <div className={`flex flex-col items-center justify-center h-full ${textMuted}`}>
-              <MessageSquare size={22} className="mb-2 opacity-30" />
-              <p className="text-[11px]">No messages yet</p>
-              <p className="text-[10px] mt-0.5 opacity-40">Say hello to your collaborators!</p>
+            <div className="flex h-full flex-col items-center justify-center text-fg-muted">
+              <MessageSquare size={16} className="mb-2 text-fg-secondary" />
+              <p className="text-[12px] font-medium text-fg-secondary">No messages yet</p>
+              <p className="mt-0.5 text-[11px]">Say hello to your collaborators!</p>
             </div>
           )}
 
           {messages.map((msg) => {
             const isSelf = msg.peerId === selfPeerId;
             return (
-              <div key={msg.id} className={`flex flex-col ${isSelf ? 'items-end' : 'items-start'}`}>
-                <div className="flex items-center gap-1.5 mb-0.5 mx-1">
-                  {!isSelf && (
-                    <div
-                      className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7px] font-bold text-white shrink-0"
-                      style={{ backgroundColor: msg.color }}
-                    >
-                      {msg.displayName.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <span className={`text-[10px] font-medium ${isSelf ? 'text-[#CAA4F7]' : textMuted}`}>
+              <div key={msg.id} className="border-b border-line px-3 py-2 last:border-b-0">
+                <div className="mb-0.5 flex items-center gap-1.5">
+                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: msg.color }} />
+                  <span className={`text-[11px] font-medium ${isSelf ? 'text-fg' : 'text-fg-secondary'}`}>
                     {isSelf ? 'You' : msg.displayName}
                   </span>
-                  <span className={`text-[9px] ${textMuted} opacity-40`}>
-                    {formatTime(msg.timestamp)}
-                  </span>
+                  <span className="text-[11px] text-fg-muted">{formatTime(msg.timestamp)}</span>
                 </div>
-                <div
-                  className={`px-2.5 py-1.5 rounded-lg text-[12px] max-w-[85%] leading-relaxed ${
-                    isSelf
-                      ? 'bg-[#CAA4F7] text-[#1E1E2A] rounded-tr-sm'
-                      : isDark
-                        ? 'bg-[#232340] text-slate-200 rounded-tl-sm'
-                        : 'bg-white text-slate-800 border border-slate-200/60 rounded-tl-sm'
-                  }`}
-                >
-                  {msg.text}
-                </div>
+                <div className="whitespace-pre-wrap break-words text-[13px] leading-relaxed text-fg">{msg.text}</div>
               </div>
             );
           })}
@@ -145,33 +111,31 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       </div>
 
       {/* Input */}
-      <div className={`p-2.5 border-t ${border} shrink-0`}>
+      <div className="shrink-0 border-t border-line p-3">
         <form onSubmit={handleSend} className="relative">
           <input
             ref={inputRef}
             type="text"
+            aria-label="Chat message"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value.slice(0, MAX_MESSAGE_LENGTH))}
             placeholder={canSend ? 'Type a message...' : 'Join a room to chat'}
             disabled={!canSend}
             maxLength={MAX_MESSAGE_LENGTH}
-            className={`w-full pl-3 pr-9 py-2 rounded-lg text-[12px] focus:outline-none transition-colors border ${inputBg} ${textPrimary} placeholder:text-slate-400/50 focus:ring-1 focus:ring-[#CAA4F7]/40 focus:border-[#CAA4F7]/40`}
+            className="h-8 w-full rounded-ctl border border-line bg-bg pl-2.5 pr-9 text-[13px] text-fg outline-none transition-colors placeholder:text-fg-muted focus:border-accent disabled:opacity-50"
           />
           <button
             type="submit"
+            aria-label="Send message"
             disabled={!canSend || !inputValue.trim()}
-            className={`absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 rounded-md transition-colors ${
-              !canSend || !inputValue.trim()
-                ? 'opacity-20 cursor-not-allowed'
-                : 'text-[#CAA4F7] hover:bg-[#CAA4F7]/10'
-            }`}
+            className="absolute right-0.5 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-ctl text-fg-secondary transition-colors enabled:text-accent enabled:hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            <Send size={13} />
+            <Send size={14} />
           </button>
         </form>
-        <div className={`mt-1 flex items-center justify-between text-[9px] ${textMuted} opacity-60`}>
+        <div className="mt-1 flex items-center justify-between text-[11px] text-fg-muted">
           <span>{canSend ? 'Enter to send' : ''}</span>
-          {remaining < 100 && <span className={remaining < 40 ? 'text-amber-400' : ''}>{remaining}</span>}
+          {remaining < 100 && <span className={remaining < 40 ? 'text-danger' : ''}>{remaining}</span>}
         </div>
       </div>
     </div>
