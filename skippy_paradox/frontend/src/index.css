@@ -439,14 +439,14 @@ html.light .ai-prose { color: #1e293b; }
 html.light .ai-prose h1,
 html.light .ai-prose h2,
 html.light .ai-prose h3 { color: #0f172a; }
-html.light .ai-prose blockquote { background: rgba(136, 57, 239, 0.05); }
+html.light .ai-prose blockquote { background: rgba(86, 192, 242, 0.05); }
 html.light .ai-prose th { border-bottom: 1px solid #e2e8f0; }
 html.light .ai-prose td { border-bottom: 1px solid #f1f5f9; }
 html.light .ai-prose tr:nth-child(even) td { background: rgba(0, 0, 0, 0.02); }
 
 html.light .ai-prose code:not(pre code) {
-  background: rgba(136, 57, 239, 0.08);
-  border: 1px solid rgba(136, 57, 239, 0.12);
+  background: rgba(86, 192, 242, 0.08);
+  border: 1px solid rgba(86, 192, 242, 0.12);
   border-radius: 4px;
   padding: 0.1em 0.35em;
   font-size: 11px;
@@ -487,7 +487,7 @@ html.light .ai-prose pre { background: #1e293b; }
 html.dark .monaco-editor,
 html.dark .monaco-editor .margin,
 html.dark .monaco-editor-background {
-  background-color: #232332 !important;
+  background-color: var(--sh-bg) !important;
 }
 
 html.dark .monaco-editor .scroll-decoration {
@@ -497,7 +497,7 @@ html.dark .monaco-editor .scroll-decoration {
 html.light .monaco-editor,
 html.light .monaco-editor .margin,
 html.light .monaco-editor-background {
-  background-color: #EEF1F5 !important;
+  background-color: var(--sh-bg) !important;
 }
 
 html.light .monaco-editor .scroll-decoration {
@@ -519,7 +519,8 @@ html.dark .monaco-editor .view-overlays .current-line {
 
 /* Light Mode Line Highlight - Subtle dark tint */
 html.light .monaco-editor .view-overlays .current-line {
-  background-color: rgba(0, 0, 0, 0.04) !important;
+  /* Shenron is dark-only visually */
+  background-color: rgba(255, 255, 255, 0.04) !important;
 }
 
 /* Hide gutter highlight completely - no border, no background */
@@ -553,19 +554,19 @@ html.light .monaco-editor .view-overlays .current-line {
 /* 1. Minimap Hover - Show subtle highlight */
 html.dark .monaco-editor .minimap:hover .minimap-slider-decoration,
 html.dark .monaco-editor .minimap:hover .minimap-slider-horizontal {
-  background: rgba(203, 166, 247, 0.15) !important;
+  background: rgba(86, 192, 242, 0.15) !important;
 }
 
 /* 2. Slider Hover - Brighter highlight */
 html.dark .monaco-editor .minimap-slider:hover .minimap-slider-decoration,
 html.dark .monaco-editor .minimap-slider:hover .minimap-slider-horizontal {
-  background: rgba(203, 166, 247, 0.25) !important;
+  background: rgba(86, 192, 242, 0.25) !important;
 }
 
 /* 3. Active State - Brightest highlight */
 html.dark .monaco-editor .minimap-slider.active .minimap-slider-decoration,
 html.dark .monaco-editor .minimap-slider.active .minimap-slider-horizontal {
-  background: rgba(203, 166, 247, 0.35) !important;
+  background: rgba(86, 192, 242, 0.35) !important;
 }
 
 /* Light Mode - Catppuccin Latte Slider Overrides */
@@ -573,17 +574,17 @@ html.dark .monaco-editor .minimap-slider.active .minimap-slider-horizontal {
 /* 1. Minimap Hover - Show subtle highlight */
 html.light .monaco-editor .minimap:hover .minimap-slider-decoration,
 html.light .monaco-editor .minimap:hover .minimap-slider-horizontal {
-  background: rgba(136, 57, 239, 0.15) !important;
+  background: rgba(86, 192, 242, 0.15) !important;
 }
 
 /* 2. Slider Hover - Brighter highlight */
 html.light .monaco-editor .minimap-slider:hover .minimap-slider-decoration,
 html.light .monaco-editor .minimap-slider:hover .minimap-slider-horizontal {
-  background: rgba(136, 57, 239, 0.25) !important;
+  background: rgba(86, 192, 242, 0.25) !important;
 }
 
 /* 3. Active State - Brightest highlight */
 html.light .monaco-editor .minimap-slider.active .minimap-slider-decoration,
 html.light .monaco-editor .minimap-slider.active .minimap-slider-horizontal {
-  background: rgba(136, 57, 239, 0.35) !important;
+  background: rgba(86, 192, 242, 0.35) !important;
 }
